@@ -1,5 +1,5 @@
-name: driven_yield
-description: Aplicación Flutter basada en los mockups de Driven Yield Citas.
+﻿name: driven_yield
+description: AplicaciÃ³n Flutter basada en los mockups de Driven Yield Citas.
 publish_to: "none"
 version: 1.0.0+1
 
@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_local_notifications: ^17.2.3
+  timezone: ^0.9.4
   googleapis: ^13.1.0
   googleapis_auth: ^1.6.0
   http: ^1.2.2
@@ -18,6 +20,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_local_notifications: ^17.2.3
+  timezone: ^0.9.4
   flutter_lints: ^3.0.0
 
 flutter:
