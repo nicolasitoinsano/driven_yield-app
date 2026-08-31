@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../models/admin_client.dart';
 import '../models/managed_service.dart';
 import 'supabase_service.dart';
-
+//nicolas es mero gei//
 class AdminDataService extends ChangeNotifier {
   List<AdminClient> _clients = [];
   List<ManagedService> _services = [];
