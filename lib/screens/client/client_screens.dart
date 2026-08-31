@@ -6,6 +6,7 @@ import '../../models/managed_service.dart';
 import '../../widgets/layout.dart';
 import '../../widgets/navigation_bars.dart';
 import '../../services/supabase_service.dart';
+import '../../widgets/notification_bell.dart';
 
 class ServicesScreen extends StatelessWidget {
   const ServicesScreen({super.key, required this.navigate, required this.services});
@@ -362,7 +363,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 38, 20, 18),
         children: [
-          const Text.rich(TextSpan(text: 'Driven Yield ', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, height: 1), children: [TextSpan(text: 'Citas', style: TextStyle(color: AppColors.accent))])),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Expanded(
+                child: Text.rich(TextSpan(text: 'Driven Yield ', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, height: 1), children: [TextSpan(text: 'Citas', style: TextStyle(color: AppColors.accent))])),
+              ),
+              NotificationBell(onTap: () => widget.navigate(AppSection.notifications)),
+            ],
+          ),
           const SizedBox(height: 8),
           const Text('Visualiza y gestiona todas las citas del taller', style: TextStyle(color: Colors.white54, fontSize: 13)),
           const SizedBox(height: 24),

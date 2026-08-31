@@ -6,6 +6,7 @@ enum AppSection {
   booking,
   dashboard,
   history,
+  notifications,
   adminLogin,
   adminDashboard,
   adminClients,
