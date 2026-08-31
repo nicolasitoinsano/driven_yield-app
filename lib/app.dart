@@ -8,6 +8,7 @@ import 'models/managed_service.dart';
 import 'screens/admin/admin_screens.dart';
 import 'screens/auth/auth_screens.dart';
 import 'screens/client/client_screens.dart';
+import 'screens/client/notifications_screen.dart';
 import 'screens/welcome/welcome_screen.dart';
 import 'services/admin_data_service.dart';
 
@@ -60,6 +61,7 @@ class _DrivenYieldAppState extends State<DrivenYieldApp> {
         AppSection.booking => BookingScreen(navigate: _navigate, services: _adminData.activeServices),
         AppSection.dashboard => DashboardScreen(navigate: _navigate),
         AppSection.history => HistoryScreen(navigate: _navigate),
+        AppSection.notifications => NotificationsScreen(navigate: _navigate),
         AppSection.adminLogin => AdminLoginScreen(navigate: _navigate),
         AppSection.adminDashboard => AdminDashboardScreen(navigate: _navigate, clientCount: _adminData.clients.length, activeServiceCount: _adminData.activeServices.length),
         AppSection.adminClients => AdminClientsScreen(navigate: _navigate, clients: _adminData.clients, onSave: _saveClient, onDelete: _adminData.deleteClient),
