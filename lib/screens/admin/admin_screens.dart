@@ -428,7 +428,9 @@ class _AdminBookingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final clientName = booking['usuario']?['nombre'] ?? 'Cliente';
-    final serviceName = booking['servicio']?['nombre'] ?? 'Servicio de taller';
+    final serviceName = (booking['notas'] != null && booking['notas'].toString().startsWith('Servicios:'))
+        ? booking['notas'].toString().replaceFirst('Servicios: ', '')
+        : (booking['servicio']?['nombre'] ?? 'Servicio de taller');
     final rawPrice = booking['monto'] != null && (booking['monto'] as num) > 0
         ? booking['monto']
         : booking['servicio']?['precio'];

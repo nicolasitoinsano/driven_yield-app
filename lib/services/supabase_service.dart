@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../models/app_user.dart';
 import '../models/managed_service.dart';
@@ -22,10 +23,68 @@ class SupabaseService {
     return '\$$formatted';
   }
 
-  /// Convierte un string de precio a número decimal
-  static double parsePrice(String price) {
-    final clean = price.replaceAll(RegExp(r'[^0-9.]'), '');
-    return double.tryParse(clean) ?? 0.0;
+  /// Convierte un string o num de precio a número decimal compatible con moneda colombiana
+  static double parsePrice(dynamic price) {
+    if (price == null) return 0.0;
+    if (price is num) return price.toDouble();
+    var s = price.toString().trim().replaceAll(r'$', '').replaceAll(' ', '');
+    if (s.contains('.') && s.contains(',')) {
+      if (s.indexOf('.') < s.indexOf(',')) {
+        s = s.replaceAll('.', '').replaceAll(',', '.');
+      } else {
+        s = s.replaceAll(',', '');
+      }
+    } else if (s.contains('.')) {
+      final parts = s.split('.');
+      if (parts.length > 2 || (parts.length == 2 && parts[1].length == 3)) {
+        s = s.replaceAll('.', '');
+      }
+    } else if (s.contains(',')) {
+      final parts = s.split(',');
+      if (parts.length > 2 || (parts.length == 2 && parts[1].length == 3)) {
+        s = s.replaceAll(',', '');
+      } else {
+        s = s.replaceAll(',', '.');
+      }
+    }
+    return double.tryParse(s) ?? 0.0;
+  }
+
+  /// Valida que la hora se encuentre dentro del horario de atención permitido (9:00 AM a 9:00 PM)
+  static bool isValidOperatingHour(int hour, int minute) {
+    if (hour < 9) return false;
+    if (hour > 21) return false;
+    if (hour == 21 && minute > 0) return false;
+    return true;
+  }
+
+  /// Valida que la fecha y hora seleccionadas no sean anteriores al momento actual
+  static bool isFutureDateTime(DateTime date, int hour, int minute, {DateTime? now}) {
+    final current = now ?? DateTime.now();
+    final appointmentDateTime = DateTime(date.year, date.month, date.day, hour, minute);
+    return appointmentDateTime.isAfter(current);
+  }
+
+  /// Consulta si un horario ya se encuentra ocupado por otra cita activa en la misma fecha
+  static Future<bool> isTimeSlotBooked(DateTime date, String time, {int? excludeCitaId}) async {
+    try {
+      final dateString = date.toIso8601String().split('T')[0];
+      final formattedTime = time.length == 5 ? '$time:00' : time;
+      var query = _supabase
+          .from('cita')
+          .select('id_cita')
+          .eq('fecha', dateString)
+          .eq('hora', formattedTime)
+          .neq('estado', 'cancelada');
+      if (excludeCitaId != null) {
+        query = query.neq('id_cita', excludeCitaId);
+      }
+      final res = await query.limit(1);
+      return res.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error verificando disponibilidad de horario: $e');
+      return false;
+    }
   }
 
   static Future<List<ManagedService>> getServices() async {
@@ -41,15 +100,55 @@ class SupabaseService {
     }).toList();
   }
 
-  /// Crea la cita y devuelve la fila insertada (con `id_cita`) para poder
-  /// confirmar que sí quedó registrada. Si Supabase no devuelve la fila
-  /// (insert bloqueado por RLS, por ejemplo) lanza un error explícito en
-  /// vez de reportar éxito silenciosamente.
+  /// Crea la cita y devuelve la fila insertada (con `id_cita`).
+  /// Valida:
+  /// 1. Horario de atención: 9:00 AM a 9:00 PM.
+  /// 2. Citas en el futuro (no antes de la hora actual).
+  /// 3. Horarios no repetidos/ocupados.
+  /// 4. Guarda uno o varios servicios sumando el monto total.
   static Future<Map<String, dynamic>> createBooking({
-    required int idServicio,
+    List<ManagedService>? services,
+    int? idServicio,
     required DateTime date,
     required String time,
+    String? customNotes,
   }) async {
+    final timeParts = time.split(':');
+    final hour = int.tryParse(timeParts[0]) ?? 0;
+    final minute = timeParts.length > 1 ? (int.tryParse(timeParts[1]) ?? 0) : 0;
+
+    // 1. Validar horario de atención (9 AM a 9 PM)
+    if (!isValidOperatingHour(hour, minute)) {
+      throw Exception('Las citas solo se pueden agendar entre las 9:00 AM y las 9:00 PM.');
+    }
+
+    // 2. Validar que la fecha y hora no sea pasada
+    if (!isFutureDateTime(date, hour, minute)) {
+      throw Exception('No se pueden agendar citas antes de la hora actual.');
+    }
+
+    // 3. Validar disponibilidad de horario (evitar duplicados a la misma hora)
+    final isBooked = await isTimeSlotBooked(date, time);
+    if (isBooked) {
+      throw Exception('El horario seleccionado ($time) ya se encuentra reservado por otra cita. Por favor selecciona otra hora.');
+    }
+
+    // Determinar servicios, monto total y notas
+    final List<ManagedService> selectedServices = services ?? [];
+    int primaryServiceId = idServicio ?? (selectedServices.isNotEmpty ? int.parse(selectedServices.first.id) : 1);
+    double totalAmount = 0.0;
+    String notas = customNotes ?? 'Reserva desde app móvil';
+
+    if (selectedServices.isNotEmpty) {
+      primaryServiceId = int.parse(selectedServices.first.id);
+      totalAmount = selectedServices.fold<double>(0.0, (sum, s) => sum + parsePrice(s.price));
+      final serviceNames = selectedServices.map((s) => s.name).join(', ');
+      notas = 'Servicios: $serviceNames';
+      if (customNotes != null && customNotes.trim().isNotEmpty) {
+        notas += ' - $customNotes';
+      }
+    }
+
     int vehicleId = 1;
     try {
       final vehicles = await getUserVehicles();
@@ -58,17 +157,19 @@ class SupabaseService {
       }
     } catch (_) {}
 
+    final formattedTime = time.length == 5 ? '$time:00' : time;
+
     final result = await _supabase
         .from('cita')
         .insert({
           'fecha': date.toIso8601String().split('T')[0],
-          'hora': '$time:00',
+          'hora': formattedTime,
           'estado': 'pendiente',
           'id_usuario': _currentUserId,
           'id_vehiculo': vehicleId,
-          'id_servicio': idServicio,
-          'notas': 'Reserva desde app móvil',
-          'monto': 0.0, // Idealmente enviar el monto
+          'id_servicio': primaryServiceId,
+          'notas': notas,
+          'monto': totalAmount,
         })
         .select()
         .maybeSingle();
@@ -106,15 +207,33 @@ class SupabaseService {
   static Future<List<Map<String, dynamic>>> getUserBookings() async {
     return await _supabase
         .from('cita')
-        .select('*, servicio(nombre, precio)')
+        .select('*,servicio(nombre,precio)')
         .eq('id_usuario', _currentUserId)
         .order('fecha', ascending: false);
   }
 
   static Future<void> updateBookingDate(int citaId, DateTime date, String time) async {
+    final timeParts = time.split(':');
+    final hour = int.tryParse(timeParts[0]) ?? 0;
+    final minute = timeParts.length > 1 ? (int.tryParse(timeParts[1]) ?? 0) : 0;
+
+    if (!isValidOperatingHour(hour, minute)) {
+      throw Exception('Las citas solo se pueden reprogramar entre las 9:00 AM y las 9:00 PM.');
+    }
+
+    if (!isFutureDateTime(date, hour, minute)) {
+      throw Exception('No se pueden reprogramar citas antes de la hora actual.');
+    }
+
+    final isBooked = await isTimeSlotBooked(date, time, excludeCitaId: citaId);
+    if (isBooked) {
+      throw Exception('El horario seleccionado ($time) ya se encuentra reservado por otra cita.');
+    }
+
+    final formattedTime = time.length == 5 ? '$time:00' : time;
     await _supabase.from('cita').update({
       'fecha': date.toIso8601String().split('T')[0],
-      'hora': '$time:00',
+      'hora': formattedTime,
     }).eq('id_cita', citaId);
   }
 
@@ -381,11 +500,16 @@ class SupabaseService {
 
   /// Obtiene todas las citas de la base de datos para la administración y métricas
   static Future<List<Map<String, dynamic>>> getAllBookingsAdmin() async {
-    final res = await _supabase
-        .from('cita')
-        .select('*, servicio(nombre, precio), usuario(nombre, email, telefono)')
-        .order('fecha', ascending: false);
-    return List<Map<String, dynamic>>.from(res);
+    try {
+      final res = await _supabase
+          .from('cita')
+          .select('*,servicio(nombre,precio)')
+          .order('fecha', ascending: false);
+      return List<Map<String, dynamic>>.from(res);
+    } catch (e) {
+      debugPrint('Error obteniendo citas: $e');
+      return [];
+    }
   }
 
   /// Actualiza el estado de una cita (ej. confirmada, completada, cancelada)

@@ -312,7 +312,7 @@ class BookingScreen extends StatefulWidget {
 
 class _BookingScreenState extends State<BookingScreen> with SingleTickerProviderStateMixin {
   int _step = 0; // 0 = Date/Time, 1 = Confirm
-  int _serviceIndex = globalSelectedServiceIndex;
+  late final Set<String> _selectedServiceIds;
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   bool _isLoading = false;
@@ -322,6 +322,11 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
   void initState() {
     super.initState();
     _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..forward();
+    _selectedServiceIds = {};
+    if (widget.services.isNotEmpty) {
+      final initialIndex = globalSelectedServiceIndex.clamp(0, widget.services.length - 1);
+      _selectedServiceIds.add(widget.services[initialIndex].id);
+    }
   }
 
   @override
@@ -330,12 +335,38 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
     super.dispose();
   }
 
+  List<ManagedService> get _selectedServices =>
+      widget.services.where((s) => _selectedServiceIds.contains(s.id)).toList();
+
+  double get _totalPrice =>
+      _selectedServices.fold<double>(0.0, (sum, s) => sum + SupabaseService.parsePrice(s.price));
+
+  void _toggleService(ManagedService service) {
+    setState(() {
+      if (_selectedServiceIds.contains(service.id)) {
+        if (_selectedServiceIds.length > 1) {
+          _selectedServiceIds.remove(service.id);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Debes seleccionar al menos un servicio para la cita.'),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+      } else {
+        _selectedServiceIds.add(service.id);
+      }
+    });
+  }
+
   Future<void> _pickDate() async {
+    final now = DateTime.now();
     final date = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 90)),
+      initialDate: _selectedDate ?? (now.hour >= 20 ? now.add(const Duration(days: 1)) : now),
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 90)),
       builder: (context, child) => Theme(
         data: ThemeData.dark().copyWith(
           colorScheme: const ColorScheme.dark(
@@ -350,13 +381,58 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
     );
     if (date != null && mounted) {
       setState(() => _selectedDate = date);
+
+      // Si ya se había elegido una hora, revalidar para la nueva fecha
+      if (_selectedTime != null) {
+        final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+        if (isToday) {
+          final apptDateTime = DateTime(date.year, date.month, date.day, _selectedTime!.hour, _selectedTime!.minute);
+          if (apptDateTime.isBefore(now)) {
+            setState(() => _selectedTime = null);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('La hora que tenías seleccionada ya pasó para el día de hoy. Por favor selecciona una nueva hora.'),
+                backgroundColor: Colors.orangeAccent,
+              ),
+            );
+            return;
+          }
+        }
+
+        final timeString = '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
+        final isBooked = await SupabaseService.isTimeSlotBooked(date, timeString);
+        if (isBooked && mounted) {
+          setState(() => _selectedTime = null);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('La hora $timeString ya está ocupada para este día. Por favor elige otra hora.'),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+      }
     }
   }
 
   Future<void> _pickTime() async {
+    final now = DateTime.now();
+    TimeOfDay initial = _selectedTime ?? const TimeOfDay(hour: 9, minute: 0);
+    if (_selectedTime == null) {
+      if (_selectedDate != null && _selectedDate!.year == now.year && _selectedDate!.month == now.month && _selectedDate!.day == now.day) {
+        if (now.hour >= 9 && now.hour < 21) {
+          initial = TimeOfDay(hour: (now.hour + 1).clamp(9, 21), minute: 0);
+        } else {
+          initial = const TimeOfDay(hour: 9, minute: 0);
+        }
+      } else {
+        initial = const TimeOfDay(hour: 9, minute: 0);
+      }
+    }
+
     final time = await showTimePicker(
       context: context,
-      initialTime: _selectedTime ?? const TimeOfDay(hour: 8, minute: 0),
+      initialTime: initial,
+      helpText: 'HORARIO DE ATENCIÓN: 9:00 AM - 9:00 PM',
       builder: (context, child) => Theme(
         data: ThemeData.dark().copyWith(
           colorScheme: const ColorScheme.dark(
@@ -369,48 +445,130 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
         child: child!,
       ),
     );
-    if (time != null && mounted) {
-      setState(() => _selectedTime = time);
-    }
-  }
 
-  Future<void> _confirmBooking(ManagedService selectedService) async {
-    if (_selectedDate == null || _selectedTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor selecciona fecha y hora')));
+    if (time == null || !mounted) return;
+
+    // 1. Validar que esté entre 9:00 AM y 9:00 PM
+    if (!SupabaseService.isValidOperatingHour(time.hour, time.minute)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Horario no permitido. Las citas solo se pueden agendar entre las 9:00 AM y las 9:00 PM.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
       return;
     }
-    
+
+    // 2. Validar que no sea antes de la hora actual si la fecha es hoy
+    if (_selectedDate != null) {
+      final isToday = _selectedDate!.year == now.year &&
+          _selectedDate!.month == now.month &&
+          _selectedDate!.day == now.day;
+      if (isToday) {
+        final apptDateTime = DateTime(
+          _selectedDate!.year,
+          _selectedDate!.month,
+          _selectedDate!.day,
+          time.hour,
+          time.minute,
+        );
+        if (apptDateTime.isBefore(now)) {
+          final nowStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No puedes seleccionar una hora anterior a la hora actual ($nowStr).'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          return;
+        }
+      }
+
+      // 3. Validar disponibilidad de horario (evitar duplicados)
+      final timeString = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+      final isBooked = await SupabaseService.isTimeSlotBooked(_selectedDate!, timeString);
+      if (isBooked && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('El horario $timeString ya se encuentra reservado por otra cita en este día. Por favor selecciona otra hora.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+    }
+
+    setState(() => _selectedTime = time);
+  }
+
+  Future<void> _confirmBooking(List<ManagedService> selectedServices) async {
+    if (selectedServices.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor selecciona al menos un servicio')),
+      );
+      return;
+    }
+    if (_selectedDate == null || _selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor selecciona fecha y hora')),
+      );
+      return;
+    }
+
+    if (!SupabaseService.isValidOperatingHour(_selectedTime!.hour, _selectedTime!.minute)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Las citas solo se pueden agendar entre las 9:00 AM y las 9:00 PM.'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
+    final now = DateTime.now();
+    final apptDateTime = DateTime(
+      _selectedDate!.year,
+      _selectedDate!.month,
+      _selectedDate!.day,
+      _selectedTime!.hour,
+      _selectedTime!.minute,
+    );
+    if (apptDateTime.isBefore(now)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No puedes agendar una cita antes de la hora actual.'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
-    
+
+    final namesSummary = selectedServices.map((s) => s.name).join(', ');
+    final timeString = '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
+
     try {
-      final timeString = '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
-      
-      // createBooking ahora confirma el insert (o lanza error si Supabase
-      // no devolvió la fila), así la alerta refleja el estado real.
       await SupabaseService.createBooking(
-        idServicio: int.parse(selectedService.id),
+        services: selectedServices,
         date: _selectedDate!,
         time: timeString,
       );
 
       await NotificationService.instance.showBookingResult(
         success: true,
-        message: 'Tu cita de "${selectedService.name}" quedó registrada correctamente.',
+        message: 'Tu cita para "$namesSummary" quedó registrada correctamente.',
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('¡Cita guardada exitosamente!')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('¡Cita guardada exitosamente!')),
+        );
         widget.navigate(AppSection.dashboard);
       }
     } catch (e) {
-      final errorMessage = 'No pudimos registrar tu cita de "${selectedService.name}": $e';
+      final errorMessage = 'No pudimos registrar tu cita: $e';
 
-      // Alerta local inmediata + registro en el historial de notificaciones,
-      // para que el fallo quede visible aunque el usuario cierre la app.
       await NotificationService.instance.showBookingResult(success: false, message: errorMessage);
       await NotificacionService.notifyBookingFailed(mensaje: errorMessage);
 
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -419,9 +577,7 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final hasServices = widget.services.isNotEmpty;
-    final safeServiceIndex = _serviceIndex >= widget.services.length ? (widget.services.isEmpty ? 0 : widget.services.length - 1) : _serviceIndex;
-    final selectedService = hasServices ? widget.services[safeServiceIndex] : null;
-    const steps = ['Fecha y Hora', 'Confirmación'];
+    const steps = ['Servicios y Horario', 'Confirmación'];
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -509,7 +665,7 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
                       opacity: Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.4, 0.8))),
                       child: SlideTransition(
                         position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.4, 0.8, curve: Curves.easeOut))),
-                        child: _buildStep(selectedService),
+                        child: _buildStep(),
                       ),
                     ),
                   ),
@@ -522,15 +678,52 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
                           width: double.infinity,
                           child: FilledButton(
                             onPressed: hasServices
-                                ? () {
+                                ? () async {
                                     if (_step < 1) {
+                                      if (_selectedServices.isEmpty) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Selecciona al menos un servicio para continuar')),
+                                        );
+                                        return;
+                                      }
                                       if (_selectedDate == null || _selectedTime == null) {
-                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selecciona fecha y hora para continuar')));
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Selecciona fecha y hora para continuar')),
+                                        );
+                                        return;
+                                      }
+                                      if (!SupabaseService.isValidOperatingHour(_selectedTime!.hour, _selectedTime!.minute)) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Las citas solo se pueden agendar entre las 9:00 AM y las 9:00 PM.')),
+                                        );
+                                        return;
+                                      }
+                                      final now = DateTime.now();
+                                      final apptDateTime = DateTime(
+                                        _selectedDate!.year,
+                                        _selectedDate!.month,
+                                        _selectedDate!.day,
+                                        _selectedTime!.hour,
+                                        _selectedTime!.minute,
+                                      );
+                                      if (apptDateTime.isBefore(now)) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('No puedes agendar antes de la hora actual.')),
+                                        );
+                                        return;
+                                      }
+                                      final timeStr = '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
+                                      final isBooked = await SupabaseService.isTimeSlotBooked(_selectedDate!, timeStr);
+                                      if (isBooked) {
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('El horario $timeStr ya está reservado. Por favor elige otro.')),
+                                        );
                                         return;
                                       }
                                       setState(() => _step++);
                                     } else {
-                                      if (selectedService != null) _confirmBooking(selectedService);
+                                      _confirmBooking(_selectedServices);
                                     }
                                   }
                                 : () => widget.navigate(AppSection.services),
@@ -555,27 +748,28 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildStep(ManagedService? selectedService) {
+  Widget _buildStep() {
     if (widget.services.isEmpty) {
       return const EmptyState(icon: Icons.design_services_outlined, label: 'No hay servicios activos para reservar.');
     }
 
-    final safeServiceIndex = _serviceIndex >= widget.services.length
-        ? (widget.services.isEmpty ? 0 : widget.services.length - 1)
-        : _serviceIndex;
-
     if (_step == 0) {
+      final now = DateTime.now();
+      final isToday = _selectedDate != null &&
+          _selectedDate!.year == now.year &&
+          _selectedDate!.month == now.month &&
+          _selectedDate!.day == now.day;
       final dateStr = _selectedDate != null
-          ? '${_selectedDate!.day.toString().padLeft(2, '0')}/${_selectedDate!.month.toString().padLeft(2, '0')}/${_selectedDate!.year}'
+          ? '${_selectedDate!.day.toString().padLeft(2, '0')}/${_selectedDate!.month.toString().padLeft(2, '0')}/${_selectedDate!.year}${isToday ? ' (Hoy)' : ''}'
           : 'Seleccionar fecha';
       final timeStr = _selectedTime != null
           ? '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}'
-          : 'Seleccionar hora';
+          : 'Seleccionar hora (9:00 AM - 9:00 PM)';
 
       return ListView(
         padding: EdgeInsets.zero,
         children: [
-          // 1. Selector de Servicio en vivo
+          // 1. Selector de Servicios (uno o más, sin duplicados)
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
@@ -589,42 +783,82 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('1. SELECCIONA EL SERVICIO', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.2)),
-                    Text(selectedService?.price ?? '', style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w900, fontSize: 13)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 38,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: widget.services.length,
-                    itemBuilder: (context, i) {
-                      final s = widget.services[i];
-                      final isSelected = i == safeServiceIndex;
-                      return GestureDetector(
-                        onTap: () => setState(() => _serviceIndex = i),
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    Row(
+                      children: [
+                        const Text('1. SERVICIOS ', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.2)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
-                            color: isSelected ? AppColors.accent : Colors.white.withOpacity(0.06),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: isSelected ? AppColors.accent : Colors.white24),
+                            color: AppColors.accent.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.accent.withOpacity(0.4)),
                           ),
                           child: Text(
-                            s.name,
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : Colors.white70,
-                              fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                            ),
+                            '${_selectedServices.length} sel.',
+                            style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold, fontSize: 10),
                           ),
                         ),
-                      );
-                    },
-                  ),
+                      ],
+                    ),
+                    Text(
+                      'Total: ${SupabaseService.formatPrice(_totalPrice)}',
+                      style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w900, fontSize: 14),
+                    ),
+                  ],
                 ),
+                const SizedBox(height: 6),
+                const Text('Toca para seleccionar uno o más servicios (sin duplicados):', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                const SizedBox(height: 12),
+                ...widget.services.map((s) {
+                  final isSelected = _selectedServiceIds.contains(s.id);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: InkWell(
+                      onTap: () => _toggleService(s),
+                      borderRadius: BorderRadius.circular(12),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppColors.accent.withOpacity(0.16) : Colors.white.withOpacity(0.04),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected ? AppColors.accent : Colors.white12,
+                            width: isSelected ? 1.5 : 1.0,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                              color: isSelected ? AppColors.accent : Colors.white38,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                s.name,
+                                style: TextStyle(
+                                  color: isSelected ? Colors.white : Colors.white70,
+                                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              s.price,
+                              style: TextStyle(
+                                color: isSelected ? AppColors.accent : Colors.white54,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
               ],
             ),
           ),
@@ -649,7 +883,7 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
           ),
           const SizedBox(height: 16),
 
-          // 3. Selección de Hora con reloj
+          // 3. Selección de Hora con reloj (9 AM a 9 PM)
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
@@ -660,7 +894,23 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('3. HORA DE LA CITA', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.2)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('3. HORA DE LA CITA', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.2)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: const Text('9:00 AM - 9:00 PM', style: TextStyle(color: AppColors.accent, fontSize: 10, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text('Horario de atención permitido. No se admiten horas pasadas ni horarios ocupados.', style: TextStyle(color: Colors.white38, fontSize: 11)),
                 const SizedBox(height: 14),
                 _PickerButton(icon: Icons.access_time_rounded, label: timeStr, onTap: _pickTime),
               ],
@@ -694,10 +944,28 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
             ],
           ),
           const SizedBox(height: 20),
-          _SummaryRow(label: 'Servicio', value: selectedService!.name),
+          const Text('SERVICIOS SELECCIONADOS:', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.1)),
+          const SizedBox(height: 8),
+          ..._selectedServices.map((s) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle, color: AppColors.accent, size: 14),
+                const SizedBox(width: 8),
+                Expanded(child: Text(s.name, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600))),
+                Text(s.price, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              ],
+            ),
+          )),
+          const Divider(color: Colors.white12, height: 24),
           _SummaryRow(label: 'Fecha solicitada', value: dateStr),
           _SummaryRow(label: 'Hora acordada', value: timeStr),
-          _SummaryRow(label: 'Monto Estimado', value: selectedService.price, valueColor: AppColors.accent, last: true),
+          _SummaryRow(
+            label: 'Monto Total Estimado',
+            value: SupabaseService.formatPrice(_totalPrice),
+            valueColor: AppColors.accent,
+            last: true,
+          ),
           const SizedBox(height: 20),
           Container(
             padding: const EdgeInsets.all(12),
@@ -830,7 +1098,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       
       final List<String> eventStrings = events.map((event) {
         final hora = event['hora']?.toString().substring(0, 5) ?? '00:00';
-        final servicio = event['servicio']?['nombre'] ?? 'Servicio';
+        final servicio = (event['notas'] != null && event['notas'].toString().startsWith('Servicios:'))
+            ? event['notas'].toString().replaceFirst('Servicios: ', '')
+            : (event['servicio']?['nombre'] ?? 'Servicio');
         return '$hora - $servicio';
       }).toList();
       
@@ -1126,16 +1396,20 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
             title: const Text('Reprogramar Cita', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Text('Selecciona nueva fecha y hora (9:00 AM a 9:00 PM):', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 12),
                 _PickerButton(
                   icon: Icons.calendar_month_outlined,
                   label: dateStr,
                   onTap: () async {
+                    final now = DateTime.now();
                     final d = await showDatePicker(
                       context: dialogContext,
                       initialDate: selectedDate,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 90)),
+                      firstDate: now,
+                      lastDate: now.add(const Duration(days: 90)),
                       builder: (ctx, child) => Theme(
                         data: ThemeData.dark().copyWith(colorScheme: const ColorScheme.dark(primary: AppColors.accent, surface: AppColors.panel)),
                         child: child!,
@@ -1147,17 +1421,43 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
                 const SizedBox(height: 16),
                 _PickerButton(
                   icon: Icons.access_time_outlined,
-                  label: timeStr,
+                  label: '$timeStr (9 AM - 9 PM)',
                   onTap: () async {
                     final t = await showTimePicker(
                       context: dialogContext,
                       initialTime: selectedTime,
+                      helpText: 'HORARIO: 9:00 AM - 9:00 PM',
                       builder: (ctx, child) => Theme(
                         data: ThemeData.dark().copyWith(colorScheme: const ColorScheme.dark(primary: AppColors.accent, surface: AppColors.panel)),
                         child: child!,
                       ),
                     );
-                    if (t != null) setStateDialog(() => selectedTime = t);
+                    if (t != null) {
+                      if (!SupabaseService.isValidOperatingHour(t.hour, t.minute)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Las citas solo se pueden agendar entre las 9:00 AM y las 9:00 PM.'),
+                            backgroundColor: Colors.redAccent,
+                          ),
+                        );
+                        return;
+                      }
+                      final now = DateTime.now();
+                      final isToday = selectedDate.year == now.year && selectedDate.month == now.month && selectedDate.day == now.day;
+                      if (isToday) {
+                        final appt = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, t.hour, t.minute);
+                        if (appt.isBefore(now)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('No puedes reprogramar a una hora anterior a la actual.'),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                          return;
+                        }
+                      }
+                      setStateDialog(() => selectedTime = t);
+                    }
                   },
                 ),
               ],
@@ -1167,15 +1467,34 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
               FilledButton(
                 style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
                 onPressed: () async {
+                  if (!SupabaseService.isValidOperatingHour(selectedTime.hour, selectedTime.minute)) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Las citas solo se pueden agendar entre las 9:00 AM y las 9:00 PM.'), backgroundColor: Colors.redAccent),
+                    );
+                    return;
+                  }
+
+                  final now = DateTime.now();
+                  final isToday = selectedDate.year == now.year && selectedDate.month == now.month && selectedDate.day == now.day;
+                  if (isToday) {
+                    final appt = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, selectedTime.hour, selectedTime.minute);
+                    if (appt.isBefore(now)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('No puedes reprogramar a una hora anterior a la actual.'), backgroundColor: Colors.redAccent),
+                      );
+                      return;
+                    }
+                  }
+
                   Navigator.pop(dialogContext);
                   if (!mounted) return;
                   setState(() => _isLoading = true);
                   try {
                     await SupabaseService.updateBookingDate(booking['id_cita'], selectedDate, timeStr);
                     await _loadData();
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cita reprogramada exitosamente')));
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('¡Cita reprogramada exitosamente!')));
                   } catch (e) {
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent));
                     setState(() => _isLoading = false);
                   }
                 },
@@ -1646,7 +1965,21 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
                   ],
                 ),
                 const SizedBox(height: 14),
-                Text(b['servicio']?['nombre'] ?? 'Servicio', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+                Text(
+                  (b['notas'] != null && b['notas'].toString().startsWith('Servicios:'))
+                      ? b['notas'].toString().replaceFirst('Servicios: ', '')
+                      : (b['servicio']?['nombre'] ?? 'Servicio'),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  SupabaseService.formatPrice(
+                    b['monto'] != null && (b['monto'] as num) > 0
+                        ? b['monto']
+                        : b['servicio']?['precio'],
+                  ),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.accent),
+                ),
                 const SizedBox(height: 16),
                 if (!isCanceled) Row(
                   children: [
