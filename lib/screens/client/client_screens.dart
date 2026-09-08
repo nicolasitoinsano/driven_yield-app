@@ -22,6 +22,8 @@ class ServicesScreen extends StatefulWidget {
 
 class _ServicesScreenState extends State<ServicesScreen> with SingleTickerProviderStateMixin {
   late AnimationController _anim;
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -31,12 +33,19 @@ class _ServicesScreenState extends State<ServicesScreen> with SingleTickerProvid
 
   @override
   void dispose() {
+    _searchCtrl.dispose();
     _anim.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final filteredServices = widget.services.where((s) {
+      if (_searchQuery.isEmpty) return true;
+      return s.name.toLowerCase().contains(_searchQuery) ||
+          s.description.toLowerCase().contains(_searchQuery);
+    }).toList();
+
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: Stack(
@@ -69,35 +78,90 @@ class _ServicesScreenState extends State<ServicesScreen> with SingleTickerProvid
               children: [
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(24, 40, 24, 20),
+                    padding: const EdgeInsets.fromLTRB(24, 30, 24, 20),
                     children: [
                       FadeTransition(
                         opacity: Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.0, 0.3))),
                         child: SlideTransition(
                           position: Tween<Offset>(begin: const Offset(0, -0.2), end: Offset.zero).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.0, 0.4, curve: Curves.easeOut))),
-                          child: const Text('SERVICIOS', style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, height: 1.0, letterSpacing: -1.0, color: Colors.white)),
+                          child: const Text('SERVICIOS', style: TextStyle(fontSize: 38, fontWeight: FontWeight.w900, height: 1.0, letterSpacing: -1.0, color: Colors.white)),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       FadeTransition(
                         opacity: Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.2, 0.5))),
-                        child: const Text('Descubre todo lo que podemos hacer por tu vehículo con la mejor calidad y cuidado experto.', style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
+                        child: const Text('Encuentra el servicio adecuado para tu auto y agenda en segundos.', style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
                       ),
-                      const SizedBox(height: 35),
-                      if (widget.services.isEmpty)
+                      const SizedBox(height: 20),
+
+                      // Buscador de servicios intuitivo
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.panel.withOpacity(0.85),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: TextField(
+                          controller: _searchCtrl,
+                          onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: 'Buscar servicio (ej: aceite, frenos, alineación)...',
+                            hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                            prefixIcon: const Icon(Icons.search_rounded, color: AppColors.accent, size: 20),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, color: Colors.white54, size: 18),
+                                    onPressed: () {
+                                      _searchCtrl.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${filteredServices.length} SERVICIOS DISPONIBLES',
+                            style: const TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1),
+                          ),
+                          if (_searchQuery.isNotEmpty)
+                            InkWell(
+                              onTap: () {
+                                _searchCtrl.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                              child: const Text('Limpiar filtro', style: TextStyle(color: AppColors.accent, fontSize: 11, fontWeight: FontWeight.w700)),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      if (filteredServices.isEmpty)
                         FadeTransition(
                           opacity: Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.4, 1.0))),
-                          child: const EmptyState(icon: Icons.design_services_outlined, label: 'No hay servicios activos en este momento.'),
+                          child: const EmptyState(icon: Icons.search_off_rounded, label: 'No se encontraron servicios con ese término de búsqueda.'),
                         )
                       else
-                        for (int i = 0; i < widget.services.length; i++) ...[
+                        for (int i = 0; i < filteredServices.length; i++) ...[
                           _AnimatedServiceCard(
-                            service: widget.services[i],
+                            service: filteredServices[i],
                             index: i,
                             animation: _anim,
-                            onTap: () => widget.navigate(AppSection.booking),
+                            onTap: () {
+                              final origIndex = widget.services.indexOf(filteredServices[i]);
+                              globalSelectedServiceIndex = origIndex >= 0 ? origIndex : 0;
+                              widget.navigate(AppSection.booking);
+                            },
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 14),
                         ],
                     ],
                   ),
@@ -194,16 +258,34 @@ class _AnimatedServiceCardState extends State<_AnimatedServiceCard> with SingleT
                         const SizedBox(height: 5),
                         Text(widget.service.description, style: const TextStyle(color: Colors.white54, fontSize: 12, height: 1.4)),
                         const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(color: AppColors.accent.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-                          child: Text(widget.service.price, style: const TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w800)),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(color: AppColors.accent.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+                              child: Text(widget.service.price, style: const TextStyle(color: AppColors.accent, fontSize: 13, fontWeight: FontWeight.w800)),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.accent,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('AGENDAR', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.8)),
+                                  SizedBox(width: 4),
+                                  Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 12),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 16),
                 ],
               ),
             ),
@@ -472,61 +554,165 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
   }
 
   Widget _buildStep(ManagedService? selectedService) {
-    if (widget.services.isEmpty) return const EmptyState(icon: Icons.design_services_outlined, label: 'No hay servicios activos para reservar.');
-    
+    if (widget.services.isEmpty) {
+      return const EmptyState(icon: Icons.design_services_outlined, label: 'No hay servicios activos para reservar.');
+    }
+
+    final safeServiceIndex = _serviceIndex >= widget.services.length
+        ? (widget.services.isEmpty ? 0 : widget.services.length - 1)
+        : _serviceIndex;
+
     if (_step == 0) {
-      final dateStr = _selectedDate != null ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}' : 'Seleccionar fecha';
-      final timeStr = _selectedTime != null ? '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}' : 'Seleccionar hora';
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      final dateStr = _selectedDate != null
+          ? '${_selectedDate!.day.toString().padLeft(2, '0')}/${_selectedDate!.month.toString().padLeft(2, '0')}/${_selectedDate!.year}'
+          : 'Seleccionar fecha';
+      final timeStr = _selectedTime != null
+          ? '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}'
+          : 'Seleccionar hora';
+
+      return ListView(
+        padding: EdgeInsets.zero,
         children: [
+          // 1. Selector de Servicio en vivo
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: AppColors.panel.withOpacity(0.85),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.white12, width: 1.5),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('SERVICIO SELECCIONADO', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5)),
-                const SizedBox(height: 12),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.accent.withOpacity(0.15), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.handyman_outlined, color: AppColors.accent, size: 20)),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text(selectedService!.name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800))),
+                    const Text('1. SELECCIONA EL SERVICIO', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.2)),
+                    Text(selectedService?.price ?? '', style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w900, fontSize: 13)),
                   ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 38,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: widget.services.length,
+                    itemBuilder: (context, i) {
+                      final s = widget.services[i];
+                      final isSelected = i == safeServiceIndex;
+                      return GestureDetector(
+                        onTap: () => setState(() => _serviceIndex = i),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.accent : Colors.white.withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: isSelected ? AppColors.accent : Colors.white24),
+                          ),
+                          child: Text(
+                            s.name,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.white70,
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
+          // 2. Selección de Fecha
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: AppColors.panel.withOpacity(0.85),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.white12, width: 1.5),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('CUÁNDO LO NECESITAS', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5)),
-                const SizedBox(height: 20),
-                _PickerButton(icon: Icons.calendar_month_outlined, label: dateStr, onTap: _pickDate),
-                const SizedBox(height: 16),
-                _PickerButton(icon: Icons.access_time_outlined, label: timeStr, onTap: _pickTime),
+                const Text('2. FECHA DE LA CITA', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.2)),
+                const SizedBox(height: 14),
+                _PickerButton(icon: Icons.calendar_month_rounded, label: dateStr, onTap: _pickDate),
               ],
             ),
           ),
+          const SizedBox(height: 16),
+
+          // 3. Selección de Hora con chips rápidos
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppColors.panel.withOpacity(0.85),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white12, width: 1.5),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('3. HORA DISPONIBLE', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.2)),
+                const SizedBox(height: 12),
+                const Text('Horarios rápidos:', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final slot in ['08:00', '10:00', '14:00', '16:00']) ...[
+                      InkWell(
+                        onTap: () {
+                          final parts = slot.split(':');
+                          setState(() => _selectedTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1])));
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: (_selectedTime?.hour == int.parse(slot.split(':')[0]))
+                                ? AppColors.accent
+                                : Colors.white.withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: (_selectedTime?.hour == int.parse(slot.split(':')[0]))
+                                  ? AppColors.accent
+                                  : Colors.white24,
+                            ),
+                          ),
+                          child: Text(
+                            slot.startsWith('08') || slot.startsWith('10')
+                                ? '$slot AM'
+                                : '${int.parse(slot.split(':')[0]) - 12}:00 PM',
+                            style: TextStyle(
+                              color: (_selectedTime?.hour == int.parse(slot.split(':')[0]))
+                                  ? Colors.white
+                                  : Colors.white70,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 14),
+                _PickerButton(icon: Icons.access_time_rounded, label: timeStr, onTap: _pickTime),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
         ],
       );
     }
-    
+
     // Step 1: Confirmation
     final dateStr = _selectedDate != null ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}' : 'No seleccionada';
     final timeStr = _selectedTime != null ? '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}' : 'No seleccionada';
@@ -534,20 +720,47 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.panel.withOpacity(0.85),
+        color: AppColors.panel.withOpacity(0.9),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white12, width: 1.5),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))],
+        border: Border.all(color: AppColors.accent.withOpacity(0.4), width: 1.5),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 18, offset: const Offset(0, 8))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('RESUMEN DE CITA', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1.5)),
-          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('RESUMEN DE RESERVA', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1.5)),
+              const StatusBadge(status: 'pendiente'),
+            ],
+          ),
+          const SizedBox(height: 20),
           _SummaryRow(label: 'Servicio', value: selectedService!.name),
-          _SummaryRow(label: 'Fecha', value: dateStr),
-          _SummaryRow(label: 'Hora', value: timeStr),
+          _SummaryRow(label: 'Fecha solicitada', value: dateStr),
+          _SummaryRow(label: 'Hora acordada', value: timeStr),
           _SummaryRow(label: 'Monto Estimado', value: selectedService.price, valueColor: AppColors.accent, last: true),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline, color: AppColors.accent, size: 18),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Se enviará un recordatorio y confirmación en tiempo real a tu perfil.',
+                    style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.3),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1232,15 +1445,35 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
 
   Widget _buildTabContent() {
     if (_currentTab == 0) {
-      if (_bookings.isEmpty) return const Center(child: Text('No tienes citas agendadas.', style: TextStyle(color: Colors.white54)));
+      if (_bookings.isEmpty) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.event_busy_rounded, size: 48, color: Colors.white30),
+                const SizedBox(height: 12),
+                const Text('No tienes citas agendadas aún.', style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => widget.navigate(AppSection.booking),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Agendar mi primera cita'),
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
       return ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
         itemCount: _bookings.length,
         itemBuilder: (context, i) {
           final b = _bookings[i];
-          final status = b['estado']?.toString().toUpperCase() ?? 'PENDIENTE';
-          final isCanceled = status == 'CANCELADA';
-          final color = isCanceled ? Colors.red : (status == 'COMPLETADA' ? Colors.green : AppColors.warning);
+          final rawStatus = b['estado']?.toString() ?? 'pendiente';
+          final isCanceled = rawStatus.toLowerCase() == 'cancelada';
           
           return Container(
             margin: const EdgeInsets.only(bottom: 16),
@@ -1257,12 +1490,14 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('${b['fecha']} | ${b['hora']?.toString().substring(0,5)}', style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
-                      child: Text(status, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                    Row(
+                      children: [
+                        const Icon(Icons.schedule, size: 14, color: Colors.white54),
+                        const SizedBox(width: 6),
+                        Text('${b['fecha']}  ${b['hora']?.toString().substring(0, 5)}', style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                      ],
                     ),
+                    StatusBadge(status: rawStatus),
                   ],
                 ),
                 const SizedBox(height: 14),

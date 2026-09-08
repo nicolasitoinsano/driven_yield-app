@@ -217,3 +217,66 @@ class SecondaryActionCard extends StatelessWidget {
         ),
       );
 }
+
+class StatusBadge extends StatelessWidget {
+  const StatusBadge({super.key, required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final cleanStatus = status.toLowerCase().trim();
+    Color bg;
+    Color fg;
+    String label;
+    IconData icon;
+
+    switch (cleanStatus) {
+      case 'confirmada':
+      case 'completada':
+        bg = AppColors.success.withOpacity(0.18);
+        fg = AppColors.success;
+        label = 'Confirmada';
+        icon = Icons.check_circle_outline;
+        break;
+      case 'cancelada':
+        bg = AppColors.danger.withOpacity(0.18);
+        fg = AppColors.danger;
+        label = 'Cancelada';
+        icon = Icons.cancel_outlined;
+        break;
+      default:
+        bg = AppColors.warning.withOpacity(0.18);
+        fg = AppColors.warning;
+        label = 'Pendiente';
+        icon = Icons.hourglass_top_outlined;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: fg.withOpacity(0.35), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: fg),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: fg,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
