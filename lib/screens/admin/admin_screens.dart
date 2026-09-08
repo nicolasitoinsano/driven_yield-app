@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../models/admin_client.dart';
 import '../../models/app_section.dart';
 import '../../models/managed_service.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/layout.dart';
 import '../../widgets/navigation_bars.dart';
 
@@ -16,33 +17,132 @@ class AdminLoginScreen extends StatefulWidget {
 }
 
 class _AdminLoginScreenState extends State<AdminLoginScreen> {
+  final TextEditingController _identifierController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   bool _hidePassword = true;
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _identifierController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleAdminLogin() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final user = await AuthService.login(
+        identifier: _identifierController.text,
+        password: _passwordController.text,
+        requireAdmin: true,
+      );
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Acceso concedido. ¡Bienvenido, Administrador ${user.name}!'),
+          backgroundColor: AppColors.accent,
+        ),
+      );
+      widget.navigate(AppSection.adminDashboard);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.gpp_bad_outlined, color: Colors.white, size: 22),
+              const SizedBox(width: 8),
+              Expanded(child: Text(e.toString())),
+            ],
+          ),
+          backgroundColor: Colors.redAccent.shade700,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) => AppPage(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(28, 42, 28, 28),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            TextButton.icon(onPressed: () => widget.navigate(AppSection.login), icon: const Icon(Icons.arrow_back, size: 18), label: const Text('Volver al acceso de clientes'), style: TextButton.styleFrom(foregroundColor: Colors.white54)),
+            TextButton.icon(
+              onPressed: () => widget.navigate(AppSection.login),
+              icon: const Icon(Icons.arrow_back, size: 18),
+              label: const Text('Volver al acceso de clientes'),
+              style: TextButton.styleFrom(foregroundColor: Colors.white54),
+            ),
             const SizedBox(height: 45),
-            Container(width: 58, height: 58, decoration: BoxDecoration(color: AppColors.accent.withOpacity(.14), borderRadius: BorderRadius.circular(17), border: Border.all(color: AppColors.accent.withOpacity(.4))), child: const Icon(Icons.admin_panel_settings_outlined, color: AppColors.accent, size: 31)),
+            Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                color: AppColors.accent.withOpacity(.14),
+                borderRadius: BorderRadius.circular(17),
+                border: Border.all(color: AppColors.accent.withOpacity(.4)),
+              ),
+              child: const Icon(Icons.admin_panel_settings_outlined, color: AppColors.accent, size: 31),
+            ),
             const SizedBox(height: 23),
             const Text('ACCESO\nADMINISTRADOR', style: TextStyle(fontSize: 34, height: .92, fontWeight: FontWeight.w900, letterSpacing: -1)),
             const SizedBox(height: 12),
-            const Text('Gestiona las ventas, los clientes y los servicios del taller.', style: TextStyle(color: Colors.white54, fontSize: 13, height: 1.45)),
+            const Text('Panel de control para ventas, clientes y servicios del taller.', style: TextStyle(color: Colors.white54, fontSize: 13, height: 1.45)),
             const SizedBox(height: 35),
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: AppColors.panel.withOpacity(0.85), border: Border.all(color: const Color(0xFF3A3A3A)), borderRadius: BorderRadius.circular(18)),
+              decoration: BoxDecoration(
+                color: AppColors.panel.withOpacity(0.85),
+                border: Border.all(color: const Color(0xFF3A3A3A)),
+                borderRadius: BorderRadius.circular(18),
+              ),
               child: Column(children: [
-                const AppTextField(icon: Icons.badge_outlined, hint: 'Correo de administrador', focused: true),
+                AppTextField(
+                  controller: _identifierController,
+                  icon: Icons.badge_outlined,
+                  hint: 'Correo o usuario de administrador',
+                  focused: true,
+                  keyboardType: TextInputType.emailAddress,
+                ),
                 const SizedBox(height: 14),
-                AppTextField(icon: Icons.lock_outline, hint: 'Contrasena', obscure: _hidePassword, suffix: IconButton(onPressed: () => setState(() => _hidePassword = !_hidePassword), icon: Icon(_hidePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined), color: Colors.white54)),
-                PrimaryButton(label: 'ENTRAR AL PANEL', onPressed: () => widget.navigate(AppSection.adminDashboard)),
+                AppTextField(
+                  controller: _passwordController,
+                  icon: Icons.lock_outline,
+                  hint: 'Contraseña',
+                  obscure: _hidePassword,
+                  suffix: IconButton(
+                    onPressed: () => setState(() => _hidePassword = !_hidePassword),
+                    icon: Icon(_hidePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                    color: Colors.white54,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _isLoading
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: CircularProgressIndicator(color: AppColors.accent),
+                      )
+                    : PrimaryButton(label: 'ENTRAR AL PANEL', onPressed: _handleAdminLogin),
               ]),
             ),
             const SizedBox(height: 18),
-            const Center(child: Text('Vista de demostracion: no valida credenciales.', style: TextStyle(color: Colors.white30, fontSize: 11))),
+            const Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.shield_outlined, size: 14, color: AppColors.accent),
+                  SizedBox(width: 6),
+                  Text('Acceso seguro exclusivo para administradores autorizados.', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                ],
+              ),
+            ),
           ]),
         ),
       );
