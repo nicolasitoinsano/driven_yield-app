@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/constants/app_colors.dart';
 
+import 'dart:ui';
 class AppPage extends StatelessWidget {
   const AppPage({super.key, required this.child, this.bottomNavigation});
 
@@ -9,11 +10,41 @@ class AppPage extends StatelessWidget {
   final Widget? bottomNavigation;
 
   @override
-  Widget build(BuildContext context) => Column(
-        children: [
-          Expanded(child: child),
-          if (bottomNavigation != null) bottomNavigation!,
-        ],
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: AppColors.canvas,
+        bottomNavigationBar: bottomNavigation,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.network(
+              'https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&w=1200&q=80',
+              fit: BoxFit.cover,
+              alignment: Alignment.center,
+            ),
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18.0, sigmaY: 18.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AppColors.canvas.withOpacity(0.8),
+                      AppColors.canvas.withOpacity(0.95),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Column(
+                children: [
+                  Expanded(child: child),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
 }
 
@@ -131,7 +162,7 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(vertical: 42, horizontal: 20),
-        decoration: BoxDecoration(color: AppColors.panel, border: Border.all(color: AppColors.line), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: AppColors.panel.withOpacity(0.85), border: Border.all(color: AppColors.line), borderRadius: BorderRadius.circular(16)),
         child: Column(
           children: [
             Icon(icon, size: 32, color: Colors.white30),
@@ -152,7 +183,7 @@ class SecondaryActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: AppColors.panel,
+        color: AppColors.panel.withOpacity(0.85),
         borderRadius: BorderRadius.circular(15),
         child: InkWell(
           onTap: onTap,

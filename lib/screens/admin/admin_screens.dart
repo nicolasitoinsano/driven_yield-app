@@ -33,7 +33,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
             const SizedBox(height: 35),
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: AppColors.panel, border: Border.all(color: const Color(0xFF3A3A3A)), borderRadius: BorderRadius.circular(18)),
+              decoration: BoxDecoration(color: AppColors.panel.withOpacity(0.85), border: Border.all(color: const Color(0xFF3A3A3A)), borderRadius: BorderRadius.circular(18)),
               child: Column(children: [
                 const AppTextField(icon: Icons.badge_outlined, hint: 'Correo de administrador', focused: true),
                 const SizedBox(height: 14),
@@ -87,7 +87,7 @@ class _SalesChart extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         height: 198,
         padding: const EdgeInsets.fromLTRB(16, 17, 16, 13),
-        decoration: BoxDecoration(color: AppColors.panel, border: Border.all(color: AppColors.line), borderRadius: BorderRadius.circular(18)),
+        decoration: BoxDecoration(color: AppColors.panel.withOpacity(0.85), border: Border.all(color: AppColors.line), borderRadius: BorderRadius.circular(18)),
         child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Rendimiento semanal', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)), SizedBox(height: 17), Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.end, mainAxisAlignment: MainAxisAlignment.spaceAround, children: [_SalesBar(label: 'L', height: 40), _SalesBar(label: 'M', height: 65), _SalesBar(label: 'X', height: 50), _SalesBar(label: 'J', height: 85), _SalesBar(label: 'V', height: 75), _SalesBar(label: 'S', height: 100, highlighted: true), _SalesBar(label: 'D', height: 60)]))]),
       );
 }
@@ -110,7 +110,7 @@ class _MetricCard extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppColors.panel, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.line)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, color: color, size: 21), const SizedBox(height: 12), Text(value, style: const TextStyle(fontSize: 23, height: 1, fontWeight: FontWeight.w900)), const SizedBox(height: 5), Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10))]));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(14), decoration: BoxDecoration(color: AppColors.panel.withOpacity(0.85), borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.line)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(icon, color: color, size: 21), const SizedBox(height: 12), Text(value, style: const TextStyle(fontSize: 23, height: 1, fontWeight: FontWeight.w900)), const SizedBox(height: 5), Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10))]));
 }
 
 class AdminClientsScreen extends StatelessWidget {
@@ -153,7 +153,7 @@ class _ClientCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: AppColors.panel, border: Border.all(color: AppColors.line), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: AppColors.panel.withOpacity(0.85), border: Border.all(color: AppColors.line), borderRadius: BorderRadius.circular(16)),
         child: Row(children: [
           CircleAvatar(backgroundColor: const Color(0xFF422020), child: Text(client.name.substring(0, 1).toUpperCase(), style: const TextStyle(color: Color(0xFFFFA5A5), fontWeight: FontWeight.w900))),
           const SizedBox(width: 12),
@@ -214,7 +214,7 @@ class _ManagedServiceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: AppColors.panel, border: Border.all(color: AppColors.line), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: AppColors.panel.withOpacity(0.85), border: Border.all(color: AppColors.line), borderRadius: BorderRadius.circular(16)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [Container(width: 39, height: 39, decoration: BoxDecoration(color: AppColors.accent.withOpacity(.12), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.build_outlined, color: AppColors.accent, size: 21)), const SizedBox(width: 11), Expanded(child: Text(service.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800))), IconButton(onPressed: onEdit, icon: const Icon(Icons.edit_outlined, color: Color(0xFFFFB1B1), size: 20), tooltip: 'Editar servicio'), IconButton(onPressed: onDelete, icon: const Icon(Icons.delete_outline, color: Colors.white38, size: 20), tooltip: 'Eliminar servicio')]),
           const SizedBox(height: 10),
@@ -232,14 +232,13 @@ Future<void> _showClientEditor(BuildContext context, {AdminClient? existing, req
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppColors.panel,
+    backgroundColor: AppColors.panel.withOpacity(0.85),
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     builder: (sheetContext) => Padding(
       padding: EdgeInsets.fromLTRB(20, 22, 20, MediaQuery.viewInsetsOf(sheetContext).bottom + 22),
       child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text(existing == null ? 'Nuevo cliente' : 'Editar cliente', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)), const SizedBox(height: 19), AppTextField(controller: name, hint: 'Nombre completo', icon: Icons.person_outline), const SizedBox(height: 11), AppTextField(controller: email, hint: 'Correo electronico', icon: Icons.email_outlined, keyboardType: TextInputType.emailAddress), const SizedBox(height: 11), AppTextField(controller: phone, hint: 'Telefono', icon: Icons.phone_outlined, keyboardType: TextInputType.phone), PrimaryButton(label: existing == null ? 'CREAR CLIENTE' : 'GUARDAR CAMBIOS', onPressed: () { if (name.text.trim().isEmpty) return; onSave(AdminClient(id: existing?.id ?? DateTime.now().microsecondsSinceEpoch.toString(), name: name.text.trim(), email: email.text.trim(), phone: phone.text.trim())); Navigator.of(sheetContext).pop(); })])),
     ),
   );
-  name.dispose(); email.dispose(); phone.dispose();
 }
 
 Future<void> _showServiceEditor(BuildContext context, {ManagedService? existing, required ValueChanged<ManagedService> onSave}) async {
@@ -250,7 +249,7 @@ Future<void> _showServiceEditor(BuildContext context, {ManagedService? existing,
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppColors.panel,
+    backgroundColor: AppColors.panel.withOpacity(0.85),
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
     builder: (sheetContext) => StatefulBuilder(
       builder: (context, setSheetState) => Padding(
@@ -259,14 +258,13 @@ Future<void> _showServiceEditor(BuildContext context, {ManagedService? existing,
       ),
     ),
   );
-  name.dispose(); description.dispose(); price.dispose();
 }
 
 Future<void> _confirmRemoval(BuildContext context, {required String type, required VoidCallback onConfirm}) async {
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      backgroundColor: AppColors.panel,
+      backgroundColor: AppColors.panel.withOpacity(0.85),
       title: const Text('Eliminar registro', style: TextStyle(fontWeight: FontWeight.w900)),
       content: Text('Esta seguro de eliminar $type? Esta accion no se puede deshacer.', style: const TextStyle(color: Colors.white60, fontSize: 13)),
       actions: [TextButton(onPressed: () => Navigator.of(dialogContext).pop(false), child: const Text('CANCELAR')), FilledButton(onPressed: () => Navigator.of(dialogContext).pop(true), style: FilledButton.styleFrom(backgroundColor: AppColors.accent), child: const Text('ELIMINAR'))],
