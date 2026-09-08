@@ -7,16 +7,17 @@ import '../models/booking_service.dart';
 
 class GoogleCalendarService {
   // Singleton pattern
-  static final GoogleCalendarService _instance = GoogleCalendarService._internal();
+  static final GoogleCalendarService _instance =
+      GoogleCalendarService._internal();
   factory GoogleCalendarService() => _instance;
   GoogleCalendarService._internal();
 
   static const _scopes = [calendar.CalendarApi.calendarScope];
-  static const String _calendarId = 'primary'; // Se puede reemplazar con el ID del calendario del taller
+  static const String _calendarId =
+      'primary'; // Se puede reemplazar con el ID del calendario del taller
 
   calendar.CalendarApi? _calendarApi;
 
-  /// Inicializa la API con las credenciales JSON
   Future<void> initialize(Map<String, dynamic> jsonCredentials) async {
     if (_calendarApi != null) return; // Ya inicializado
     try {
@@ -60,11 +61,13 @@ class GoogleCalendarService {
 
     try {
       final startTime = booking.date;
-      final endTime = startTime.add(const Duration(hours: 1)); // Suponiendo 1 hora por servicio
+      final endTime = startTime
+          .add(const Duration(hours: 1)); // Suponiendo 1 hora por servicio
 
       final event = calendar.Event(
         summary: 'Cita Taller: ${booking.serviceName}',
-        description: 'Cliente: ${booking.clientName}\nServicio: ${booking.serviceName}\nEstado: ${booking.status}',
+        description:
+            'Cliente: ${booking.clientName}\nServicio: ${booking.serviceName}\nEstado: ${booking.status}',
         start: calendar.EventDateTime(
           dateTime: startTime.toUtc(),
           timeZone: 'UTC',
