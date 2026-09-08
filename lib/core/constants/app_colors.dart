@@ -8,5 +8,6 @@ abstract final class AppColors {
   static const accent = Color(0xFFCC2222);
   static const success = Color(0xFF4FD18B);
   static const warning = Color(0xFFCC8800);
+  static const danger = Color(0xFFE53935);
   static const info = Color(0xFF5E8BF1);
 }
