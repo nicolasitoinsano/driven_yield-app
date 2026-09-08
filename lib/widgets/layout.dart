@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:ui';
 
 import '../core/constants/app_colors.dart';
-
-import 'dart:ui';
 class AppPage extends StatelessWidget {
   const AppPage({super.key, required this.child, this.bottomNavigation});
 
@@ -83,6 +83,10 @@ class AppTextField extends StatelessWidget {
     this.focused = false,
     this.maxLines = 1,
     this.keyboardType,
+    this.inputFormatters,
+    this.textCapitalization = TextCapitalization.none,
+    this.maxLength,
+    this.onChanged,
   });
 
   final TextEditingController? controller;
@@ -93,6 +97,10 @@ class AppTextField extends StatelessWidget {
   final bool focused;
   final int maxLines;
   final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
+  final TextCapitalization textCapitalization;
+  final int? maxLength;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +113,11 @@ class AppTextField extends StatelessWidget {
       obscureText: obscure,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
+      textCapitalization: textCapitalization,
+      maxLength: maxLength,
+      buildCounter: maxLength != null ? (_, {required currentLength, required isFocused, maxLength}) => null : null,
+      onChanged: onChanged,
       style: const TextStyle(fontSize: 13),
       decoration: InputDecoration(
         filled: true,

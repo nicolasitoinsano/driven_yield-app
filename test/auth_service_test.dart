@@ -70,4 +70,53 @@ void main() {
       expect(AuthService.currentUserId, isNull);
     });
   });
+
+  group('AuthService Colombian Phone Validation Tests', () {
+    test('Accepts valid Colombian mobile numbers (starts with 3, min 10 digits)', () {
+      expect(AuthService.isValidColombianPhone('3001234567'), isTrue);
+      expect(AuthService.isValidColombianPhone('312 345 6789'), isTrue);
+      expect(AuthService.isValidColombianPhone('320-111-2233'), isTrue);
+      expect(AuthService.isValidColombianPhone('+573159998877'), isTrue);
+      expect(AuthService.isValidColombianPhone('3501234567'), isTrue);
+    });
+
+    test('Rejects invalid phone numbers', () {
+      // Menos de 10 dígitos
+      expect(AuthService.isValidColombianPhone('300123456'), isFalse);
+      expect(AuthService.isValidColombianPhone('12345'), isFalse);
+      // No empieza por 3 (números fijos o extranjeros)
+      expect(AuthService.isValidColombianPhone('2001234567'), isFalse);
+      expect(AuthService.isValidColombianPhone('6012345678'), isFalse);
+      expect(AuthService.isValidColombianPhone('4001234567'), isFalse);
+      // Vacío o letras
+      expect(AuthService.isValidColombianPhone(''), isFalse);
+      expect(AuthService.isValidColombianPhone('abcdefghij'), isFalse);
+    });
+  });
+
+  group('AuthService Vehicle Plate Validation Tests', () {
+    test('Accepts valid Colombian plates (3 letters and 3 numbers)', () {
+      expect(AuthService.isValidPlate('ABC123'), isTrue);
+      expect(AuthService.isValidPlate('xyz789'), isTrue);
+      expect(AuthService.isValidPlate('DEF-456'), isTrue);
+      expect(AuthService.isValidPlate('KLM 098'), isTrue);
+    });
+
+    test('Explicitly rejects 000000 and invalid formats', () {
+      // Rechazo explícito de 000000
+      expect(AuthService.isValidPlate('000000'), isFalse);
+      // Formato invertido (3 números y 3 letras)
+      expect(AuthService.isValidPlate('123ABC'), isFalse);
+      // Todo letras
+      expect(AuthService.isValidPlate('AAAAAA'), isFalse);
+      // Todo números
+      expect(AuthService.isValidPlate('123456'), isFalse);
+      // Longitud incorrecta
+      expect(AuthService.isValidPlate('AB123'), isFalse);
+      expect(AuthService.isValidPlate('ABCD12'), isFalse);
+      expect(AuthService.isValidPlate('ABC1234'), isFalse);
+      // Vacío
+      expect(AuthService.isValidPlate(''), isFalse);
+    });
+  });
 }

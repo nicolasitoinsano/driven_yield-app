@@ -29,6 +29,14 @@ class SupabaseService {
     required DateTime date,
     required String time,
   }) async {
+    int vehicleId = 1;
+    try {
+      final vehicles = await getUserVehicles();
+      if (vehicles.isNotEmpty && vehicles.first['id_vehiculo'] != null) {
+        vehicleId = int.tryParse(vehicles.first['id_vehiculo'].toString()) ?? 1;
+      }
+    } catch (_) {}
+
     final result = await _supabase
         .from('cita')
         .insert({
@@ -36,7 +44,7 @@ class SupabaseService {
           'hora': '$time:00',
           'estado': 'pendiente',
           'id_usuario': _currentUserId,
-          'id_vehiculo': 1, // Vehiculo quemado por ahora
+          'id_vehiculo': vehicleId,
           'id_servicio': idServicio,
           'notas': 'Reserva desde app móvil',
           'monto': 0.0, // Idealmente enviar el monto
@@ -50,15 +58,28 @@ class SupabaseService {
     return result;
   }
 
-  static Future<List<Map<String, dynamic>>> getBookingsForDay(DateTime date) async {
+  static Future<List<Map<String, dynamic>>> getBookingsForDay(DateTime date, {int? userId}) async {
+    final uid = userId ?? AuthService.currentUserId;
+    if (uid == null) return [];
     final dateString = date.toIso8601String().split('T')[0];
-    return await _supabase.from('cita').select('*, servicio(nombre)').eq('fecha', dateString);
+    return await _supabase
+        .from('cita')
+        .select('*, servicio(nombre)')
+        .eq('fecha', dateString)
+        .eq('id_usuario', uid);
   }
 
-  static Future<List<Map<String, dynamic>>> getBookingsForMonth(int year, int month) async {
+  static Future<List<Map<String, dynamic>>> getBookingsForMonth(int year, int month, {int? userId}) async {
+    final uid = userId ?? AuthService.currentUserId;
+    if (uid == null) return [];
     final start = DateTime(year, month, 1).toIso8601String().split('T')[0];
     final end = DateTime(year, month + 1, 0).toIso8601String().split('T')[0];
-    return await _supabase.from('cita').select('fecha').gte('fecha', start).lte('fecha', end);
+    return await _supabase
+        .from('cita')
+        .select('fecha')
+        .gte('fecha', start)
+        .lte('fecha', end)
+        .eq('id_usuario', uid);
   }
 
   static Future<List<Map<String, dynamic>>> getUserBookings() async {
