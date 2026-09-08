@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:googleapis/calendar/v3.dart' as calendar;
 import 'package:googleapis_auth/auth_io.dart';
-import 'package:intl/intl.dart';
 
 import '../models/booking_service.dart';
 

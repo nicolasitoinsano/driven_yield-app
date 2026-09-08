@@ -13,3 +13,17 @@ class BookingService {
   final String price;
   final IconData icon;
 }
+
+class Booking {
+  const Booking({
+    required this.date,
+    required this.serviceName,
+    required this.clientName,
+    this.status = 'confirmada',
+  });
+
+  final DateTime date;
+  final String serviceName;
+  final String clientName;
+  final String status;
+}

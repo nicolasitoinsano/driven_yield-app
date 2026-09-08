@@ -11,6 +11,7 @@ import 'screens/client/client_screens.dart';
 import 'screens/client/notifications_screen.dart';
 import 'screens/welcome/welcome_screen.dart';
 import 'services/admin_data_service.dart';
+import 'services/auth_service.dart';
 
 /// Composition root: conecta navegacion, pantallas y estado compartido.
 class DrivenYieldApp extends StatefulWidget {
@@ -30,7 +31,12 @@ class _DrivenYieldAppState extends State<DrivenYieldApp> {
     super.dispose();
   }
 
-  void _navigate(AppSection section) => setState(() => _section = section);
+  void _navigate(AppSection section) {
+    if (section == AppSection.login) {
+      AuthService.logout();
+    }
+    setState(() => _section = section);
+  }
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -53,21 +59,47 @@ class _DrivenYieldAppState extends State<DrivenYieldApp> {
         ),
       );
 
-  Widget _currentScreen() => switch (_section) {
-        AppSection.welcome => WelcomeScreen(navigate: _navigate),
-        AppSection.login => LoginScreen(navigate: _navigate),
-        AppSection.register => RegisterScreen(navigate: _navigate),
-        AppSection.services => ServicesScreen(navigate: _navigate, services: _adminData.activeServices),
-        AppSection.booking => BookingScreen(navigate: _navigate, services: _adminData.activeServices),
-        AppSection.dashboard => DashboardScreen(navigate: _navigate),
-        AppSection.history => HistoryScreen(navigate: _navigate),
-        AppSection.notifications => NotificationsScreen(navigate: _navigate),
-        AppSection.adminLogin => AdminLoginScreen(navigate: _navigate),
-        AppSection.adminDashboard => AdminDashboardScreen(navigate: _navigate, clientCount: _adminData.clients.length, activeServiceCount: _adminData.activeServices.length),
-        AppSection.adminClients => AdminClientsScreen(navigate: _navigate, clients: _adminData.clients, onSave: _saveClient, onDelete: _adminData.deleteClient),
-        AppSection.adminServices => AdminServicesScreen(navigate: _navigate, services: _adminData.services, onSave: _saveService, onDelete: _adminData.deleteService),
-      };
+  Widget _currentScreen() {
+    // Protección de rutas: las pantallas administrativas exigen rol de administrador autenticado
+    final bool isAdminSection = _section == AppSection.adminDashboard ||
+        _section == AppSection.adminClients ||
+        _section == AppSection.adminServices;
+
+    if (isAdminSection && !AuthService.isAdmin) {
+      return AdminLoginScreen(navigate: _navigate);
+    }
+
+    return switch (_section) {
+      AppSection.welcome => WelcomeScreen(navigate: _navigate),
+      AppSection.login => LoginScreen(navigate: _navigate),
+      AppSection.register => RegisterScreen(navigate: _navigate),
+      AppSection.services => ServicesScreen(navigate: _navigate, services: _adminData.activeServices),
+      AppSection.booking => BookingScreen(navigate: _navigate, services: _adminData.activeServices),
+      AppSection.dashboard => DashboardScreen(navigate: _navigate),
+      AppSection.history => HistoryScreen(navigate: _navigate),
+      AppSection.notifications => NotificationsScreen(navigate: _navigate),
+      AppSection.adminLogin => AdminLoginScreen(navigate: _navigate),
+      AppSection.adminDashboard => AdminDashboardScreen(
+          navigate: _navigate,
+          clientCount: _adminData.clients.length,
+          activeServiceCount: _adminData.activeServices.length,
+        ),
+      AppSection.adminClients => AdminClientsScreen(
+          navigate: _navigate,
+          clients: _adminData.clients,
+          onSave: _saveClient,
+          onDelete: _adminData.deleteClient,
+        ),
+      AppSection.adminServices => AdminServicesScreen(
+          navigate: _navigate,
+          services: _adminData.services,
+          onSave: _saveService,
+          onDelete: _adminData.deleteService,
+        ),
+    };
+  }
 
   void _saveClient(AdminClient client) => _adminData.saveClient(client);
   void _saveService(ManagedService service) => _adminData.saveService(service);
 }
+
