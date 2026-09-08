@@ -143,5 +143,10 @@ void main() {
       // Vacío
       expect(AuthService.isValidEmail(''), isFalse);
     });
+
+    test('Verifies admin seed credentials hash', () {
+      final hash = r'$2b$12$x8AdFx3BrOn4ohHoA.WovudASKNXpekv/u2xiYZSDXbY4/DeKu4r.';
+      expect(AuthService.verifyPassword('admin123', hash), isTrue);
+    });
   });
 }
