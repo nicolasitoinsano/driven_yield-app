@@ -156,10 +156,11 @@ class AuthService {
     return digits.startsWith('57') && digits.length >= 12 ? digits.substring(2) : digits;
   }
 
-  /// Valida que el correo electrónico tenga formato completo con dominio válido (ej. usuario@dominio.com)
+  /// Valida que el correo electrónico tenga formato completo con dominio válido (ej. usuario@dominio.com),
+  /// exigiendo nombres de dominio de al menos 3 caracteres (rechazando @g.com, @h.com, etc.).
   static bool isValidEmail(String email) {
     final clean = email.trim();
-    return RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(clean);
+    return RegExp(r'^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9-]{3,}\.)+[a-zA-Z]{2,}$').hasMatch(clean);
   }
 
   /// Valida que la placa tenga exactamente 3 letras y 3 números (ej. ABC123), prohibiendo 000000

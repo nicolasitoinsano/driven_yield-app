@@ -8,14 +8,34 @@ class SupabaseService {
 
   static int get _currentUserId => AuthService.currentUserId ?? 1;
 
+  /// Formatea un valor numérico o texto a formato de pesos colombianos (ej. $120,000)
+  static String formatPrice(dynamic price) {
+    if (price == null) return '\$0';
+    final numValue = price is num
+        ? price
+        : (double.tryParse(price.toString().replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0);
+    final intVal = numValue.round();
+    final formatted = intVal.toString().replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (m) => '${m[1]},',
+        );
+    return '\$$formatted';
+  }
+
+  /// Convierte un string de precio a número decimal
+  static double parsePrice(String price) {
+    final clean = price.replaceAll(RegExp(r'[^0-9.]'), '');
+    return double.tryParse(clean) ?? 0.0;
+  }
+
   static Future<List<ManagedService>> getServices() async {
-    final data = await _supabase.from('servicio').select();
+    final data = await _supabase.from('servicio').select().order('id_servicio', ascending: true);
     return data.map((json) {
       return ManagedService(
         id: json['id_servicio'].toString(),
-        name: json['nombre'] ?? 'Sin nombre',
-        description: json['descripcion'] ?? json['categoria'] ?? 'Sin descripción',
-        price: '\$${json['precio']}',
+        name: json['nombre']?.toString() ?? 'Sin nombre',
+        description: json['descripcion']?.toString() ?? json['categoria']?.toString() ?? 'Sin descripción',
+        price: formatPrice(json['precio']),
         active: json['activo'] == 1 || json['activo'] == true,
       );
     }).toList();
@@ -229,51 +249,147 @@ class SupabaseService {
   // --- ADMIN ENDPOINTS ---
 
   static Future<List<Map<String, dynamic>>> getClients() async {
-    return await _supabase.from('usuario').select('*');
+    final res = await _supabase.from('usuario').select('*').order('id_usuario', ascending: false);
+    return List<Map<String, dynamic>>.from(res);
   }
 
-  static Future<void> addClient(String name, String email, String phone) async {
-    await _supabase.from('usuario').insert({
-      'nombre': name,
-      'correo': email,
-      'telefono': phone,
-    });
+  static Future<Map<String, dynamic>> addClient(String name, String email, String phone) async {
+    final cleanName = name.trim();
+    final cleanEmail = email.trim().toLowerCase();
+    final cleanPhone = AuthService.normalizePhone(phone);
+
+    if (cleanName.isEmpty) {
+      throw const AuthException('El nombre del cliente no puede estar vacío.');
+    }
+    if (!AuthService.isValidEmail(cleanEmail)) {
+      throw const AuthException('Por favor ingresa un correo electrónico válido con dominio completo.');
+    }
+    if (!AuthService.isValidColombianPhone(cleanPhone)) {
+      throw const AuthException('El teléfono debe tener mínimo 10 dígitos y empezar por 3.');
+    }
+
+    final username = cleanEmail.contains('@')
+        ? cleanEmail.split('@')[0]
+        : cleanName.toLowerCase().replaceAll(' ', '');
+
+    final res = await _supabase.from('usuario').insert({
+      'nombre': cleanName,
+      'email': cleanEmail,
+      'correo': cleanEmail,
+      'telefono': cleanPhone,
+      'username': username,
+      'activo': 1,
+    }).select().single();
+
+    return res;
   }
 
   static Future<void> updateClient(String id, String name, String email, String phone) async {
+    final cleanName = name.trim();
+    final cleanEmail = email.trim().toLowerCase();
+    final cleanPhone = AuthService.normalizePhone(phone);
+
+    if (cleanName.isEmpty) {
+      throw const AuthException('El nombre del cliente no puede estar vacío.');
+    }
+    if (!AuthService.isValidEmail(cleanEmail)) {
+      throw const AuthException('Por favor ingresa un correo electrónico válido con dominio completo.');
+    }
+    if (!AuthService.isValidColombianPhone(cleanPhone)) {
+      throw const AuthException('El teléfono debe tener mínimo 10 dígitos y empezar por 3.');
+    }
+
     await _supabase.from('usuario').update({
-      'nombre': name,
-      'correo': email,
-      'telefono': phone,
+      'nombre': cleanName,
+      'email': cleanEmail,
+      'correo': cleanEmail,
+      'telefono': cleanPhone,
     }).eq('id_usuario', id);
   }
 
   static Future<void> deleteClient(String id) async {
+    final uid = int.tryParse(id);
+    if (uid != null) {
+      try {
+        await _supabase.from('cita').delete().eq('id_usuario', uid);
+      } catch (_) {}
+      try {
+        await _supabase.from('vehiculo').delete().eq('id_usuario', uid);
+      } catch (_) {}
+    }
     await _supabase.from('usuario').delete().eq('id_usuario', id);
   }
 
-  static Future<void> addService(String name, String description, String price, bool active) async {
-    // Assuming price is passed as a string like "120,000", clean it up or store as string
-    final cleanPrice = price.replaceAll(RegExp(r'[^0-9.]'), '');
-    await _supabase.from('servicio').insert({
-      'nombre': name,
-      'descripcion': description,
-      'precio': cleanPrice.isEmpty ? 0 : double.parse(cleanPrice),
+  static Future<Map<String, dynamic>> addService(
+    String name,
+    String description,
+    String price,
+    bool active,
+  ) async {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) {
+      throw const AuthException('Por favor ingresa el nombre del servicio.');
+    }
+    final numPrice = parsePrice(price);
+
+    final res = await _supabase.from('servicio').insert({
+      'nombre': cleanName,
+      'descripcion': description.trim(),
+      'categoria': 'General',
+      'precio': numPrice,
       'activo': active ? 1 : 0,
-    });
+    }).select().single();
+
+    return res;
   }
 
-  static Future<void> updateService(String id, String name, String description, String price, bool active) async {
-    final cleanPrice = price.replaceAll(RegExp(r'[^0-9.]'), '');
+  static Future<void> updateService(
+    String id,
+    String name,
+    String description,
+    String price,
+    bool active,
+  ) async {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) {
+      throw const AuthException('Por favor ingresa el nombre del servicio.');
+    }
+    final numPrice = parsePrice(price);
+
     await _supabase.from('servicio').update({
-      'nombre': name,
-      'descripcion': description,
-      'precio': cleanPrice.isEmpty ? 0 : double.parse(cleanPrice),
+      'nombre': cleanName,
+      'descripcion': description.trim(),
+      'precio': numPrice,
+      'activo': active ? 1 : 0,
+    }).eq('id_servicio', id);
+  }
+
+  static Future<void> updateServiceActive(String id, bool active) async {
+    await _supabase.from('servicio').update({
       'activo': active ? 1 : 0,
     }).eq('id_servicio', id);
   }
 
   static Future<void> deleteService(String id) async {
-    await _supabase.from('servicio').delete().eq('id_servicio', id);
+    try {
+      await _supabase.from('servicio').delete().eq('id_servicio', id);
+    } catch (e) {
+      // Si existen citas asociadas en la base de datos, desactivar el servicio
+      await _supabase.from('servicio').update({'activo': 0}).eq('id_servicio', id);
+    }
+  }
+
+  /// Obtiene todas las citas de la base de datos para la administración y métricas
+  static Future<List<Map<String, dynamic>>> getAllBookingsAdmin() async {
+    final res = await _supabase
+        .from('cita')
+        .select('*, servicio(nombre, precio), usuario(nombre, email, telefono)')
+        .order('fecha', ascending: false);
+    return List<Map<String, dynamic>>.from(res);
+  }
+
+  /// Actualiza el estado de una cita (ej. confirmada, completada, cancelada)
+  static Future<void> updateBookingStatus(int citaId, String status) async {
+    await _supabase.from('cita').update({'estado': status}).eq('id_cita', citaId);
   }
 }

@@ -132,6 +132,13 @@ void main() {
       // El caso específico reportado por el usuario: solo nombre y arroba sin dominio
       expect(AuthService.isValidEmail('mateo@'), isFalse);
       expect(AuthService.isValidEmail('usuario@'), isFalse);
+      // Dominios incompletos o de un solo carácter reportados por el usuario (@g.com, @h.com)
+      expect(AuthService.isValidEmail('usuario@g.com'), isFalse);
+      expect(AuthService.isValidEmail('usuario@h.com'), isFalse);
+      expect(AuthService.isValidEmail('mateo@g.com'), isFalse);
+      expect(AuthService.isValidEmail('mateo@h.com'), isFalse);
+      expect(AuthService.isValidEmail('test@a.co'), isFalse);
+      expect(AuthService.isValidEmail('test@b.com'), isFalse);
       // Sin arroba
       expect(AuthService.isValidEmail('mateo'), isFalse);
       // Sin usuario
