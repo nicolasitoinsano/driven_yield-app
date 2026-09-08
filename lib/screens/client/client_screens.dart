@@ -354,7 +354,7 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
   Future<void> _pickTime() async {
     final time = await showTimePicker(
       context: context,
-      initialTime: const TimeOfDay(hour: 8, minute: 0),
+      initialTime: _selectedTime ?? const TimeOfDay(hour: 8, minute: 0),
       builder: (context, child) => Theme(
         data: ThemeData.dark().copyWith(
           colorScheme: const ColorScheme.dark(
@@ -647,7 +647,7 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
           ),
           const SizedBox(height: 16),
 
-          // 3. Selección de Hora con chips rápidos
+          // 3. Selección de Hora con reloj
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
@@ -658,51 +658,7 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('3. HORA DISPONIBLE', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.2)),
-                const SizedBox(height: 12),
-                const Text('Horarios rápidos:', style: TextStyle(color: Colors.white38, fontSize: 11)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final slot in ['08:00', '10:00', '14:00', '16:00']) ...[
-                      InkWell(
-                        onTap: () {
-                          final parts = slot.split(':');
-                          setState(() => _selectedTime = TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1])));
-                        },
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: (_selectedTime?.hour == int.parse(slot.split(':')[0]))
-                                ? AppColors.accent
-                                : Colors.white.withOpacity(0.06),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: (_selectedTime?.hour == int.parse(slot.split(':')[0]))
-                                  ? AppColors.accent
-                                  : Colors.white24,
-                            ),
-                          ),
-                          child: Text(
-                            slot.startsWith('08') || slot.startsWith('10')
-                                ? '$slot AM'
-                                : '${int.parse(slot.split(':')[0]) - 12}:00 PM',
-                            style: TextStyle(
-                              color: (_selectedTime?.hour == int.parse(slot.split(':')[0]))
-                                  ? Colors.white
-                                  : Colors.white70,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                const Text('3. HORA DE LA CITA', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.2)),
                 const SizedBox(height: 14),
                 _PickerButton(icon: Icons.access_time_rounded, label: timeStr, onTap: _pickTime),
               ],
@@ -1079,16 +1035,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     return months[month - 1];
   }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({required this.number, required this.label, required this.border});
-  final String number;
-  final String label;
-  final Color border;
-
-  @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.panel, borderRadius: BorderRadius.circular(16), border: Border(bottom: BorderSide(color: border, width: 3))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(number, style: const TextStyle(fontSize: 35, height: 1, fontWeight: FontWeight.w900)), const SizedBox(height: 7), Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11))]));
 }
 
 class _Weekday extends StatelessWidget {

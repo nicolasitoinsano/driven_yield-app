@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../models/app_section.dart';
@@ -288,18 +289,51 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
     setState(() => _isLoading = true);
 
     try {
+      final name = _nameController.text.trim();
+      final email = _emailController.text.trim();
+      final phone = _phoneController.text.trim();
+      final password = _passwordController.text.trim();
+      final plate = _plateController.text.trim();
+
+      if (name.isEmpty) {
+        throw 'Por favor, ingresa tu nombre completo.';
+      }
+      if (email.isEmpty || !email.contains('@')) {
+        throw 'Por favor, ingresa un correo electrónico válido.';
+      }
+      if (phone.isEmpty) {
+        throw 'Por favor, ingresa tu número de teléfono.';
+      }
+      final cleanPhone = AuthService.normalizePhone(phone);
+      if (cleanPhone.length < 10) {
+        throw 'El teléfono debe contener como mínimo 10 dígitos.';
+      }
+      if (!cleanPhone.startsWith('3')) {
+        throw 'El teléfono debe ser un número de Colombia e iniciar por 3 (ej. 3001234567).';
+      }
+      if (password.length < 6) {
+        throw 'La contraseña debe contener al menos 6 caracteres.';
+      }
+
+      if (plate.isNotEmpty) {
+        final cleanPlate = AuthService.normalizePlate(plate);
+        if (cleanPlate == '000000' || !AuthService.isValidPlate(cleanPlate)) {
+          throw 'La placa debe tener exactamente 3 letras y 3 números (ej. ABC123). No se permite 000000.';
+        }
+      }
+
       final brandModel = _brandModelController.text.trim();
       final brand = brandModel.contains(' ') ? brandModel.split(' ').first : brandModel;
       final model = brandModel.contains(' ') ? brandModel.substring(brand.length).trim() : brandModel;
 
       final user = await AuthService.register(
-        name: _nameController.text,
-        email: _emailController.text,
-        phone: _phoneController.text,
-        password: _passwordController.text,
+        name: name,
+        email: email,
+        phone: phone,
+        password: password,
         vehicleBrand: brand.isNotEmpty ? brand : 'Vehículo',
         vehicleModel: model.isNotEmpty ? model : 'Modelo',
-        vehiclePlate: _plateController.text,
+        vehiclePlate: plate,
       );
 
       if (!mounted) return;
@@ -389,8 +423,12 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                       AppTextField(
                         controller: _phoneController,
                         icon: Icons.phone_android_outlined,
-                        hint: 'Teléfono',
+                        hint: 'Teléfono (ej. 3001234567)',
                         keyboardType: TextInputType.phone,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(10),
+                        ],
                       ),
                       const SizedBox(height: 14),
                       Row(
@@ -407,7 +445,11 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                             child: AppTextField(
                               controller: _plateController,
                               icon: Icons.pin_outlined,
-                              hint: 'Placa',
+                              hint: 'Placa (ABC123)',
+                              textCapitalization: TextCapitalization.characters,
+                              inputFormatters: [
+                                LengthLimitingTextInputFormatter(6),
+                              ],
                             ),
                           ),
                         ],

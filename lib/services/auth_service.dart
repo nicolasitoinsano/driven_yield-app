@@ -144,6 +144,30 @@ class AuthService {
     return authenticatedUser;
   }
 
+  /// Valida que el teléfono tenga al menos 10 dígitos y sea de Colombia (empiece por 3)
+  static bool isValidColombianPhone(String phone) {
+    final cleanDigits = normalizePhone(phone);
+    return cleanDigits.length >= 10 && cleanDigits.startsWith('3');
+  }
+
+  /// Normaliza el teléfono extrayendo solo dígitos y quitando el prefijo 57 si aplica
+  static String normalizePhone(String phone) {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    return digits.startsWith('57') && digits.length >= 12 ? digits.substring(2) : digits;
+  }
+
+  /// Valida que la placa tenga exactamente 3 letras y 3 números (ej. ABC123), prohibiendo 000000
+  static bool isValidPlate(String plate) {
+    final clean = normalizePlate(plate);
+    if (clean == '000000') return false;
+    return RegExp(r'^[A-Z]{3}[0-9]{3}$').hasMatch(clean);
+  }
+
+  /// Normaliza la placa a mayúsculas sin espacios ni guiones
+  static String normalizePlate(String plate) {
+    return plate.trim().replaceAll(RegExp(r'[\s\-]'), '').toUpperCase();
+  }
+
   /// Registra un nuevo usuario en la base de datos con contraseña cifrada (Bcrypt)
   static Future<AppUser> register({
     required String name,
@@ -156,7 +180,7 @@ class AuthService {
   }) async {
     final cleanName = name.trim();
     final cleanEmail = email.trim().toLowerCase();
-    final cleanPhone = phone.trim();
+    final cleanPhone = normalizePhone(phone);
     final cleanPass = password.trim();
 
     if (cleanName.isEmpty) {
@@ -165,8 +189,28 @@ class AuthService {
     if (cleanEmail.isEmpty || !cleanEmail.contains('@')) {
       throw const AuthException('Por favor, ingresa un correo electrónico válido.');
     }
+    if (cleanPhone.isEmpty) {
+      throw const AuthException('Por favor, ingresa tu número de teléfono.');
+    }
+    if (cleanPhone.length < 10) {
+      throw const AuthException('El número de teléfono debe tener como mínimo 10 dígitos.');
+    }
+    if (!cleanPhone.startsWith('3')) {
+      throw const AuthException('El teléfono debe ser un número de Colombia e iniciar por 3 (ej. 3001234567).');
+    }
     if (cleanPass.length < 6) {
       throw const AuthException('La contraseña debe contener al menos 6 caracteres.');
+    }
+
+    // Validar placa si se ingresa información de vehículo
+    String? normalizedPlate;
+    final bool hasVehicleInfo = (vehiclePlate != null && vehiclePlate.trim().isNotEmpty) ||
+        (vehicleBrand != null && vehicleBrand.trim().isNotEmpty);
+    if (hasVehicleInfo) {
+      normalizedPlate = normalizePlate(vehiclePlate ?? '');
+      if (normalizedPlate == '000000' || !isValidPlate(normalizedPlate)) {
+        throw const AuthException('La placa debe tener exactamente 3 letras y 3 números (ej. ABC123). No se permite 000000.');
+      }
     }
 
     // Verificar duplicado
@@ -209,17 +253,14 @@ class AuthService {
 
     final newUser = AppUser.fromMap(userRow, defaultRole: 'cliente');
 
-    // Registrar vehículo si fue provisto
-    if (vehicleBrand != null &&
-        vehicleBrand.trim().isNotEmpty &&
-        vehiclePlate != null &&
-        vehiclePlate.trim().isNotEmpty) {
+    // Registrar vehículo si fue provisto y validado
+    if (hasVehicleInfo && normalizedPlate != null) {
       try {
         await _supabase.from('vehiculo').insert({
           'id_usuario': newUser.id,
-          'marca': vehicleBrand.trim(),
+          'marca': vehicleBrand?.trim().isNotEmpty == true ? vehicleBrand!.trim() : 'Vehículo',
           'modelo': (vehicleModel ?? '').trim(),
-          'placa': vehiclePlate.trim().toUpperCase(),
+          'placa': normalizedPlate,
         });
       } catch (e) {
         debugPrint('Error registrando vehículo inicial: $e');
