@@ -298,8 +298,8 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
       if (name.isEmpty) {
         throw 'Por favor, ingresa tu nombre completo.';
       }
-      if (email.isEmpty || !email.contains('@')) {
-        throw 'Por favor, ingresa un correo electrónico válido.';
+      if (email.isEmpty || !AuthService.isValidEmail(email)) {
+        throw 'Por favor, ingresa un correo electrónico válido con dominio (ej. usuario@dominio.com).';
       }
       if (phone.isEmpty) {
         throw 'Por favor, ingresa tu número de teléfono.';

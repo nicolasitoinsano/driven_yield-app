@@ -1,11 +1,13 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../models/app_section.dart';
 import '../../models/managed_service.dart';
 import '../../widgets/layout.dart';
 import '../../widgets/navigation_bars.dart';
+import '../../services/auth_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/notificacion_service.dart';
 import '../../services/notification_service.dart';
@@ -1199,11 +1201,40 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: brandCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'Marca', labelStyle: const TextStyle(color: Colors.white54), enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)), focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)))),
+            TextField(
+              controller: brandCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Marca (ej. Chevrolet, Mazda)',
+                labelStyle: const TextStyle(color: Colors.white54),
+                enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
             const SizedBox(height: 12),
-            TextField(controller: modelCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'Modelo (Año)', labelStyle: const TextStyle(color: Colors.white54), enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)), focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)))),
+            TextField(
+              controller: modelCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Modelo o Línea (ej. Spark 2020)',
+                labelStyle: const TextStyle(color: Colors.white54),
+                enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
             const SizedBox(height: 12),
-            TextField(controller: plateCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'Placa', labelStyle: const TextStyle(color: Colors.white54), enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)), focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)))),
+            TextField(
+              controller: plateCtrl,
+              textCapitalization: TextCapitalization.characters,
+              inputFormatters: [LengthLimitingTextInputFormatter(6)],
+              style: const TextStyle(color: Colors.white, letterSpacing: 2, fontWeight: FontWeight.bold),
+              decoration: InputDecoration(
+                labelText: 'Placa (ej. ABC123)',
+                labelStyle: const TextStyle(color: Colors.white54),
+                enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
           ],
         ),
         actions: [
@@ -1211,13 +1242,118 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
             onPressed: () async {
-              if (brandCtrl.text.isEmpty || modelCtrl.text.isEmpty || plateCtrl.text.isEmpty) return;
+              final brand = brandCtrl.text.trim();
+              final model = modelCtrl.text.trim();
+              final plate = AuthService.normalizePlate(plateCtrl.text);
+
+              if (brand.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor ingresa la marca del vehículo')));
+                return;
+              }
+              if (!AuthService.isValidPlate(plate)) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La placa debe tener 3 letras y 3 números (ej. ABC123). No se permite 000000.')));
+                return;
+              }
+
               Navigator.pop(dialogContext);
               if (!mounted) return;
               setState(() => _isLoading = true);
               try {
-                await SupabaseService.addVehicle(brandCtrl.text, modelCtrl.text, plateCtrl.text);
+                await SupabaseService.addVehicle(brand, model, plate);
                 await _loadData();
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehículo agregado exitosamente')));
+              } catch (e) {
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                setState(() => _isLoading = false);
+              }
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditVehicleDialog(Map<String, dynamic> vehicle) {
+    final brandCtrl = TextEditingController(text: vehicle['marca'] ?? '');
+    final modelCtrl = TextEditingController(text: vehicle['modelo'] ?? '');
+    final plateCtrl = TextEditingController(text: vehicle['placa'] ?? '');
+    final int vehicleId = int.tryParse(vehicle['id_vehiculo'].toString()) ?? 0;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.canvas,
+        title: const Text('Editar Vehículo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: brandCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Marca',
+                labelStyle: const TextStyle(color: Colors.white54),
+                enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: modelCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Modelo o Línea',
+                labelStyle: const TextStyle(color: Colors.white54),
+                enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: plateCtrl,
+              textCapitalization: TextCapitalization.characters,
+              inputFormatters: [LengthLimitingTextInputFormatter(6)],
+              style: const TextStyle(color: Colors.white, letterSpacing: 2, fontWeight: FontWeight.bold),
+              decoration: InputDecoration(
+                labelText: 'Placa (ej. ABC123)',
+                labelStyle: const TextStyle(color: Colors.white54),
+                enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
+            onPressed: () async {
+              final brand = brandCtrl.text.trim();
+              final model = modelCtrl.text.trim();
+              final plate = AuthService.normalizePlate(plateCtrl.text);
+
+              if (brand.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor ingresa la marca del vehículo')));
+                return;
+              }
+              if (!AuthService.isValidPlate(plate)) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La placa debe tener 3 letras y 3 números (ej. ABC123). No se permite 000000.')));
+                return;
+              }
+
+              Navigator.pop(dialogContext);
+              if (!mounted) return;
+              setState(() => _isLoading = true);
+              try {
+                await SupabaseService.updateVehicle(
+                  vehicleId: vehicleId,
+                  brand: brand,
+                  model: model,
+                  plate: plate,
+                );
+                await _loadData();
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehículo actualizado exitosamente')));
               } catch (e) {
                 if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
                 setState(() => _isLoading = false);
@@ -1232,6 +1368,7 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
 
   void _showEditProfileDialog() {
     final nameCtrl = TextEditingController(text: _profile?['nombre'] ?? '');
+    final emailCtrl = TextEditingController(text: _profile?['correo'] ?? _profile?['email'] ?? '');
     final phoneCtrl = TextEditingController(text: _profile?['telefono'] ?? '');
 
     showDialog(
@@ -1239,25 +1376,87 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.canvas,
         title: const Text('Editar Perfil', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nameCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'Nombre', labelStyle: const TextStyle(color: Colors.white54), enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)), focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)))),
-            const SizedBox(height: 12),
-            TextField(controller: phoneCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'Teléfono', labelStyle: const TextStyle(color: Colors.white54), enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)), focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)))),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Nombre completo',
+                  prefixIcon: const Icon(Icons.person_outline, color: Colors.white54, size: 20),
+                  labelStyle: const TextStyle(color: Colors.white54),
+                  enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Correo electrónico (ej. usuario@gmail.com)',
+                  prefixIcon: const Icon(Icons.email_outlined, color: Colors.white54, size: 20),
+                  labelStyle: const TextStyle(color: Colors.white54),
+                  enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneCtrl,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Teléfono (ej. 3001234567)',
+                  prefixIcon: const Icon(Icons.phone_android_outlined, color: Colors.white54, size: 20),
+                  labelStyle: const TextStyle(color: Colors.white54),
+                  enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
             onPressed: () async {
+              final name = nameCtrl.text.trim();
+              final email = emailCtrl.text.trim();
+              final phone = phoneCtrl.text.trim();
+
+              if (name.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor ingresa tu nombre')));
+                return;
+              }
+              if (!AuthService.isValidEmail(email)) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor ingresa un correo electrónico válido con dominio (ej. usuario@dominio.com)')));
+                return;
+              }
+              if (!AuthService.isValidColombianPhone(phone)) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El teléfono debe tener mínimo 10 dígitos y empezar por 3')));
+                return;
+              }
+
               Navigator.pop(dialogContext);
               if (!mounted) return;
               setState(() => _isLoading = true);
               try {
-                await SupabaseService.updateUserProfile(nameCtrl.text, phoneCtrl.text);
+                await SupabaseService.updateUserProfile(
+                  name: name,
+                  email: email,
+                  phone: phone,
+                );
                 await _loadData();
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('¡Perfil actualizado exitosamente!')));
               } catch (e) {
                 if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
                 setState(() => _isLoading = false);
@@ -1315,7 +1514,7 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
                               children: [
                                 Text(_profile?['nombre'] ?? 'Usuario', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: Colors.white)),
                                 const SizedBox(height: 4),
-                                Text(_profile?['correo'] ?? 'Sin correo', style: const TextStyle(color: Colors.white54, fontSize: 13, fontWeight: FontWeight.w500)),
+                                Text(_profile?['correo'] ?? _profile?['email'] ?? 'Sin correo', style: const TextStyle(color: Colors.white54, fontSize: 13, fontWeight: FontWeight.w500)),
                               ],
                             ),
                           ),
@@ -1508,6 +1707,11 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
                             ],
                           ),
                         ),
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined, color: AppColors.accent, size: 20),
+                          tooltip: 'Editar vehículo',
+                          onPressed: () => _showEditVehicleDialog(v),
+                        ),
                       ],
                     ),
                   );
@@ -1542,11 +1746,22 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('DATOS PERSONALES', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('DATOS PERSONALES', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                    TextButton.icon(
+                      onPressed: _showEditProfileDialog,
+                      icon: const Icon(Icons.edit_outlined, size: 14, color: AppColors.accent),
+                      label: const Text('EDITAR', style: TextStyle(color: AppColors.accent, fontSize: 11, fontWeight: FontWeight.w800)),
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 _InfoRow(icon: Icons.person_outline, label: 'Nombre', value: _profile?['nombre'] ?? '-'),
                 const Divider(color: Colors.white12, height: 32),
-                _InfoRow(icon: Icons.email_outlined, label: 'Correo', value: _profile?['correo'] ?? '-'),
+                _InfoRow(icon: Icons.email_outlined, label: 'Correo', value: _profile?['correo'] ?? _profile?['email'] ?? '-'),
                 const Divider(color: Colors.white12, height: 32),
                 _InfoRow(icon: Icons.phone_outlined, label: 'Teléfono', value: _profile?['telefono'] ?? '-'),
               ],

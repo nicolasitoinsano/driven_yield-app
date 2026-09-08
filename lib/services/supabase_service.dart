@@ -1,4 +1,5 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
+import '../models/app_user.dart';
 import '../models/managed_service.dart';
 import 'auth_service.dart';
 
@@ -110,17 +111,59 @@ class SupabaseService {
   }
 
   static Future<void> addVehicle(String brand, String model, String plate) async {
+    final cleanBrand = brand.trim();
+    final cleanModel = model.trim();
+    final cleanPlate = AuthService.normalizePlate(plate);
+
+    if (cleanBrand.isEmpty) {
+      throw const AuthException('Por favor, ingresa la marca del vehículo.');
+    }
+    if (!AuthService.isValidPlate(cleanPlate)) {
+      throw const AuthException('La placa debe tener 3 letras y 3 números (ej. ABC123). No se permite 000000.');
+    }
+
     await _supabase.from('vehiculo').insert({
-      'marca': brand,
-      'modelo': model,
-      'placa': plate,
+      'marca': cleanBrand,
+      'modelo': cleanModel,
+      'placa': cleanPlate,
       'id_usuario': _currentUserId,
     });
+  }
+
+  static Future<void> updateVehicle({
+    required int vehicleId,
+    required String brand,
+    required String model,
+    required String plate,
+  }) async {
+    final cleanBrand = brand.trim();
+    final cleanModel = model.trim();
+    final cleanPlate = AuthService.normalizePlate(plate);
+
+    if (cleanBrand.isEmpty) {
+      throw const AuthException('Por favor, ingresa la marca del vehículo.');
+    }
+    if (!AuthService.isValidPlate(cleanPlate)) {
+      throw const AuthException('La placa debe tener 3 letras y 3 números (ej. ABC123). No se permite 000000.');
+    }
+
+    await _supabase.from('vehiculo').update({
+      'marca': cleanBrand,
+      'modelo': cleanModel,
+      'placa': cleanPlate,
+    }).eq('id_vehiculo', vehicleId).eq('id_usuario', _currentUserId);
+  }
+
+  static Future<void> deleteVehicle(int vehicleId) async {
+    await _supabase.from('vehiculo').delete().eq('id_vehiculo', vehicleId).eq('id_usuario', _currentUserId);
   }
 
   static Future<Map<String, dynamic>> getUserProfile() async {
     try {
       final res = await _supabase.from('usuario').select('*').eq('id_usuario', _currentUserId).single();
+      if (res['correo'] == null && res['email'] != null) {
+        res['correo'] = res['email'];
+      }
       return res;
     } catch (e) {
       final current = AuthService.currentUser;
@@ -132,11 +175,55 @@ class SupabaseService {
     }
   }
 
-  static Future<void> updateUserProfile(String name, String phone) async {
+  static Future<void> updateUserProfile({
+    required String name,
+    required String phone,
+    required String email,
+  }) async {
+    final cleanName = name.trim();
+    final cleanPhone = AuthService.normalizePhone(phone);
+    final cleanEmail = email.trim().toLowerCase();
+
+    if (cleanName.isEmpty) {
+      throw const AuthException('Por favor, ingresa tu nombre completo.');
+    }
+    if (cleanEmail.isEmpty || !AuthService.isValidEmail(cleanEmail)) {
+      throw const AuthException('Por favor, ingresa un correo electrónico válido con dominio (ej. usuario@dominio.com).');
+    }
+    if (cleanPhone.isEmpty || !AuthService.isValidColombianPhone(cleanPhone)) {
+      throw const AuthException('El teléfono debe tener mínimo 10 dígitos y empezar por 3 (ej. 3001234567).');
+    }
+
+    // Verificar si el correo está en uso por otro usuario
+    final existing = await _supabase
+        .from('usuario')
+        .select('id_usuario')
+        .or('email.eq.$cleanEmail,correo.eq.$cleanEmail')
+        .neq('id_usuario', _currentUserId)
+        .limit(1);
+    if (List.from(existing).isNotEmpty) {
+      throw const AuthException('Este correo electrónico ya está registrado por otra cuenta.');
+    }
+
     await _supabase.from('usuario').update({
-      'nombre': name,
-      'telefono': phone,
+      'nombre': cleanName,
+      'telefono': cleanPhone,
+      'email': cleanEmail,
+      'correo': cleanEmail,
     }).eq('id_usuario', _currentUserId);
+
+    // Mantener la sesión local sincronizada
+    final current = AuthService.currentUser;
+    if (current != null) {
+      AuthService.setCurrentUser(AppUser(
+        id: current.id,
+        name: cleanName,
+        username: current.username,
+        email: cleanEmail,
+        phone: cleanPhone,
+        role: current.role,
+      ));
+    }
   }
 
   // --- ADMIN ENDPOINTS ---

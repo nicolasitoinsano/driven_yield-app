@@ -119,4 +119,29 @@ void main() {
       expect(AuthService.isValidPlate(''), isFalse);
     });
   });
+
+  group('AuthService Email Validation Tests', () {
+    test('Accepts valid email addresses with domains', () {
+      expect(AuthService.isValidEmail('mateo@gmail.com'), isTrue);
+      expect(AuthService.isValidEmail('juan.perez@empresa.com.co'), isTrue);
+      expect(AuthService.isValidEmail('cliente123@drivenyield.com'), isTrue);
+      expect(AuthService.isValidEmail('admin@taller.co'), isTrue);
+    });
+
+    test('Rejects invalid email addresses (including missing domain or just @)', () {
+      // El caso específico reportado por el usuario: solo nombre y arroba sin dominio
+      expect(AuthService.isValidEmail('mateo@'), isFalse);
+      expect(AuthService.isValidEmail('usuario@'), isFalse);
+      // Sin arroba
+      expect(AuthService.isValidEmail('mateo'), isFalse);
+      // Sin usuario
+      expect(AuthService.isValidEmail('@gmail.com'), isFalse);
+      // Sin TLD o TLD inválido
+      expect(AuthService.isValidEmail('mateo@dominio'), isFalse);
+      expect(AuthService.isValidEmail('mateo@dominio.'), isFalse);
+      expect(AuthService.isValidEmail('mateo@dominio.c'), isFalse);
+      // Vacío
+      expect(AuthService.isValidEmail(''), isFalse);
+    });
+  });
 }
