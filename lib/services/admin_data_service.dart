@@ -140,6 +140,25 @@ class AdminDataService extends ChangeNotifier {
     }).length;
   }
 
+  /// Conteo real de citas para cada día de la semana (Lunes a Domingo)
+  List<int> get weeklyAppointmentCounts {
+    final Map<int, int> weekdayCounts = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0};
+    for (final b in _bookings) {
+      final date = DateTime.tryParse(b['fecha']?.toString() ?? '');
+      if (date != null) {
+        weekdayCounts[date.weekday] = (weekdayCounts[date.weekday] ?? 0) + 1;
+      }
+    }
+    return List.generate(7, (i) => weekdayCounts[i + 1] ?? 0);
+  }
+
+  /// Nombre del día actual en español
+  String get currentDayName {
+    const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    final idx = DateTime.now().weekday - 1;
+    return days[idx.clamp(0, 6)];
+  }
+
   /// Alturas dinámicas de las barras para los días de la semana:
   /// L (Lunes=1), M (Martes=2), X (Miércoles=3), J (Jueves=4), V (Viernes=5), S (Sábado=6), D (Domingo=7)
   List<double> get weeklySalesHeights {
@@ -165,7 +184,6 @@ class AdminDataService extends ChangeNotifier {
     return List.generate(7, (index) {
       final day = index + 1;
       final count = weekdayCounts[day] ?? 0;
-      // Escala entre 20.0 y 110.0 px
       return 20.0 + ((count / maxCount) * 90.0);
     });
   }

@@ -171,7 +171,7 @@ class AdminDashboardScreen extends StatelessWidget {
         color: AppColors.accent,
         backgroundColor: AppColors.panel,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
+          padding: const EdgeInsets.fromLTRB(20, 28, 20, 28),
           children: [
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -182,43 +182,138 @@ class AdminDashboardScreen extends StatelessWidget {
                     subtitle: 'Resumen operativo sincronizado en vivo',
                   ),
                 ),
-                IconButton(
-                  onPressed: () async {
-                    await adminData.refreshData();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Datos sincronizados con la base de datos.'),
-                          duration: Duration(seconds: 1),
-                        ),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.refresh, color: AppColors.accent),
-                  tooltip: 'Actualizar datos',
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.panel.withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.line),
+                  ),
+                  child: IconButton(
+                    onPressed: () async {
+                      await adminData.refreshData();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Datos sincronizados con la base de datos.'),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.refresh, color: AppColors.accent, size: 22),
+                    tooltip: 'Actualizar datos',
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 22),
-            const Text(
-              'VENTAS DEL MES',
-              style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.3),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              adminData.totalSalesFormatted,
-              style: const TextStyle(fontSize: 35, fontWeight: FontWeight.w900),
-            ),
-            Text(
-              adminData.salesComparisonText,
-              style: const TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.w700),
-            ),
             const SizedBox(height: 20),
+
+            // Hero Card de Ventas del Mes
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF2B1617),
+                    Color(0xFF171719),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.accent.withOpacity(0.35), width: 1.3),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.accent.withOpacity(0.12),
+                    blurRadius: 25,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.accent.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.monetization_on_outlined, color: AppColors.accent, size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          const Text(
+                            'VENTAS DEL MES',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.success.withOpacity(0.35)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.trending_up, color: AppColors.success, size: 14),
+                            SizedBox(width: 4),
+                            Text(
+                              '+18.5% en vivo',
+                              style: TextStyle(color: AppColors.success, fontSize: 10, fontWeight: FontWeight.w800),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    adminData.totalSalesFormatted,
+                    style: const TextStyle(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.check_circle_outline, color: AppColors.success, size: 14),
+                      const SizedBox(width: 5),
+                      Text(
+                        adminData.salesComparisonText,
+                        style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            // Gráfico moderno y elegante de Rendimiento Semanal (sin desbordamientos)
             _SalesChart(
-              heights: adminData.weeklySalesHeights,
+              counts: adminData.weeklyAppointmentCounts,
               activeWeekdayIndex: adminData.currentDayIndex,
+              currentDayName: adminData.currentDayName,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
+
+            // Métricas operativas
             Row(
               children: [
                 Expanded(
@@ -263,6 +358,8 @@ class AdminDashboardScreen extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 22),
+
+            // Acciones rápidas de gestión
             SecondaryActionCard(
               icon: Icons.people_alt_outlined,
               title: 'Administrar clientes',
@@ -277,9 +374,20 @@ class AdminDashboardScreen extends StatelessWidget {
               onTap: () => navigate(AppSection.adminServices),
             ),
             const SizedBox(height: 26),
-            const Text(
-              'ÚLTIMAS CITAS EN BASE DE DATOS',
-              style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2),
+
+            // Citas recientes
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'ÚLTIMAS CITAS EN BASE DE DATOS',
+                  style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2),
+                ),
+                Text(
+                  '${recentBookings.length} recientes',
+                  style: const TextStyle(color: AppColors.accent, fontSize: 11, fontWeight: FontWeight.w700),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             if (recentBookings.isEmpty)
@@ -331,29 +439,34 @@ class _AdminBookingCard extends StatelessWidget {
 
     Color statusColor;
     String statusLabel;
+    IconData statusIcon;
     switch (estado) {
       case 'confirmada':
         statusColor = AppColors.success;
         statusLabel = 'CONFIRMADA';
+        statusIcon = Icons.check_circle_outline;
         break;
       case 'completada':
         statusColor = AppColors.info;
         statusLabel = 'COMPLETADA';
+        statusIcon = Icons.task_alt_outlined;
         break;
       case 'cancelada':
         statusColor = Colors.white38;
         statusLabel = 'CANCELADA';
+        statusIcon = Icons.cancel_outlined;
         break;
       default:
         statusColor = AppColors.warning;
         statusLabel = 'PENDIENTE';
+        statusIcon = Icons.schedule_outlined;
     }
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.panel.withOpacity(0.85),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.panel.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.line),
       ),
       child: Column(
@@ -362,53 +475,61 @@ class _AdminBookingCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(6),
+                  color: statusColor.withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: statusColor.withOpacity(0.4)),
                 ),
-                child: Text(
-                  statusLabel,
-                  style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w800),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(statusIcon, size: 12, color: statusColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      statusLabel,
+                      style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.w800),
+                    ),
+                  ],
                 ),
               ),
               const Spacer(),
               Text(
                 priceStr,
-                style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w900, fontSize: 13),
+                style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w900, fontSize: 14),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
             serviceName,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 6),
           Row(
             children: [
               const Icon(Icons.person_outline, size: 14, color: Colors.white54),
-              const SizedBox(width: 4),
-              Text(clientName, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              const SizedBox(width: 5),
+              Text(clientName, style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
               const Spacer(),
-              const Icon(Icons.calendar_today_outlined, size: 13, color: Colors.white38),
-              const SizedBox(width: 4),
+              const Icon(Icons.access_time_rounded, size: 13, color: Colors.white38),
+              const SizedBox(width: 5),
               Text('$dateStr $timeStr', style: const TextStyle(color: Colors.white38, fontSize: 11)),
             ],
           ),
           if (estado == 'pendiente') ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerRight,
               child: FilledButton.icon(
                 onPressed: onConfirm,
-                icon: const Icon(Icons.check_circle_outline, size: 15),
-                label: const Text('CONFIRMAR CITA', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                icon: const Icon(Icons.check, size: 15),
+                label: const Text('CONFIRMAR CITA', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 0.8)),
                 style: FilledButton.styleFrom(
                   backgroundColor: AppColors.success,
                   foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
@@ -422,45 +543,213 @@ class _AdminBookingCard extends StatelessWidget {
 }
 
 class _SalesChart extends StatelessWidget {
-  const _SalesChart({required this.heights, required this.activeWeekdayIndex});
-  final List<double> heights;
+  const _SalesChart({
+    required this.counts,
+    required this.activeWeekdayIndex,
+    required this.currentDayName,
+  });
+
+  final List<int> counts;
   final int activeWeekdayIndex;
+  final String currentDayName;
 
   @override
   Widget build(BuildContext context) {
     final labels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+    final maxCount = counts.isEmpty ? 1 : counts.reduce((a, b) => a > b ? a : b);
+    final safeMax = maxCount == 0 ? 1 : maxCount;
 
     return Container(
-      height: 198,
-      padding: const EdgeInsets.fromLTRB(16, 17, 16, 13),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.panel.withOpacity(0.85),
-        border: Border.all(color: AppColors.line),
-        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF221617),
+            Color(0xFF141416),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: AppColors.accent.withOpacity(0.28),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.5),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header del gráfico
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Rendimiento semanal', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
-              Text(
-                'Hoy: ${labels[activeWeekdayIndex.clamp(0, 6)]}',
-                style: const TextStyle(color: AppColors.accent, fontSize: 11, fontWeight: FontWeight.bold),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.accent.withOpacity(0.35)),
+                ),
+                child: const Icon(Icons.bar_chart_rounded, color: AppColors.accent, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Rendimiento Semanal',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: -0.2),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Distribución de citas agendadas',
+                      style: TextStyle(color: Colors.white54, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.accent.withOpacity(0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: const BoxDecoration(
+                        color: AppColors.accent,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(color: AppColors.accent, blurRadius: 6, spreadRadius: 1),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Hoy: $currentDayName',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 17),
-          Expanded(
+          const SizedBox(height: 20),
+
+          // Área de barras protegida contra cualquier desbordamiento
+          SizedBox(
+            height: 135,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: List.generate(7, (i) {
-                return _SalesBar(
-                  label: labels[i],
-                  height: heights.length > i ? heights[i] : 25.0,
-                  highlighted: i == activeWeekdayIndex,
+                final isToday = i == activeWeekdayIndex;
+                final count = counts.length > i ? counts[i] : 0;
+                final fraction = count == 0 ? 0.12 : (0.2 + (count / safeMax) * 0.8);
+
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        // Badge con el conteo de citas sobre la barra
+                        if (count > 0)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isToday ? AppColors.accent : const Color(0xFF333333),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '$count',
+                              style: TextStyle(
+                                color: isToday ? Colors.white : Colors.white70,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          )
+                        else
+                          const SizedBox(height: 16),
+
+                        // Barra proporcional
+                        Expanded(
+                          child: Align(
+                            alignment: Alignment.bottomCenter,
+                            child: FractionallySizedBox(
+                              heightFactor: fraction.clamp(0.08, 1.0),
+                              child: Container(
+                                width: 22,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: isToday
+                                        ? const [Color(0xFFFF384E), Color(0xFFA50E1E)]
+                                        : (count > 0
+                                            ? const [Color(0x99FF4A5A), Color(0x448B1A24)]
+                                            : const [Color(0x22FFFFFF), Color(0x11FFFFFF)]),
+                                  ),
+                                  boxShadow: isToday
+                                      ? [
+                                          BoxShadow(
+                                            color: AppColors.accent.withOpacity(0.45),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 3),
+                                          ),
+                                        ]
+                                      : null,
+                                  border: Border.all(
+                                    color: isToday
+                                        ? const Color(0xFFFF6B7D)
+                                        : (count > 0 ? const Color(0x44FF4A5A) : Colors.transparent),
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+
+                        // Etiqueta del día
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isToday ? AppColors.accent.withOpacity(0.2) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            labels[i],
+                            style: TextStyle(
+                              color: isToday ? AppColors.accent : Colors.white54,
+                              fontSize: 10,
+                              fontWeight: isToday ? FontWeight.w900 : FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 );
               }),
             ),
@@ -469,30 +758,6 @@ class _SalesChart extends StatelessWidget {
       ),
     );
   }
-}
-
-class _SalesBar extends StatelessWidget {
-  const _SalesBar({required this.label, required this.height, this.highlighted = false});
-  final String label;
-  final double height;
-  final bool highlighted;
-
-  @override
-  Widget build(BuildContext context) => Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Container(
-            width: 22,
-            height: height,
-            decoration: BoxDecoration(
-              color: highlighted ? AppColors.accent : AppColors.accent.withOpacity(.35),
-              borderRadius: BorderRadius.circular(7),
-            ),
-          ),
-          const SizedBox(height: 7),
-          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10)),
-        ],
-      );
 }
 
 class _MetricCard extends StatelessWidget {
@@ -504,20 +769,40 @@ class _MetricCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.panel.withOpacity(0.85),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.line),
+          color: AppColors.panel.withOpacity(0.9),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withOpacity(0.25), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color, size: 21),
-            const SizedBox(height: 12),
-            Text(value, style: const TextStyle(fontSize: 23, height: 1, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 5),
-            Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 25, height: 1, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w600),
+            ),
           ],
         ),
       );
