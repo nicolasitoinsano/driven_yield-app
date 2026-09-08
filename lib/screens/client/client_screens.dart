@@ -7,6 +7,8 @@ import '../../models/managed_service.dart';
 import '../../widgets/layout.dart';
 import '../../widgets/navigation_bars.dart';
 import '../../services/supabase_service.dart';
+import '../../services/notificacion_service.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/notification_bell.dart';
 
 class ServicesScreen extends StatefulWidget {
@@ -299,17 +301,31 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
     try {
       final timeString = '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
       
+      // createBooking ahora confirma el insert (o lanza error si Supabase
+      // no devolvió la fila), así la alerta refleja el estado real.
       await SupabaseService.createBooking(
         idServicio: int.parse(selectedService.id),
         date: _selectedDate!,
         time: timeString,
       );
-      
+
+      await NotificationService.instance.showBookingResult(
+        success: true,
+        message: 'Tu cita de "${selectedService.name}" quedó registrada correctamente.',
+      );
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('¡Cita guardada exitosamente!')));
         widget.navigate(AppSection.dashboard);
       }
     } catch (e) {
+      final errorMessage = 'No pudimos registrar tu cita de "${selectedService.name}": $e';
+
+      // Alerta local inmediata + registro en el historial de notificaciones,
+      // para que el fallo quede visible aunque el usuario cierre la app.
+      await NotificationService.instance.showBookingResult(success: false, message: errorMessage);
+      await NotificacionService.notifyBookingFailed(mensaje: errorMessage);
+
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _isLoading = false);

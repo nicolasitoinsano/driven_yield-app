@@ -65,4 +65,26 @@ class NotificacionService {
         .eq('id_usuario', currentUserId)
         .eq('leida', false);
   }
+
+  /// Registra en la tabla `notificacion` que una cita NO se pudo crear.
+  /// El caso de éxito ya lo cubre el trigger `trg_notificar_nueva_cita`
+  /// (se dispara solo si el insert en `cita` sí ocurrió); el de error hay
+  /// que dejarlo explícito desde la app porque, si el insert falla, el
+  /// trigger nunca llega a ejecutarse.
+  static Future<void> notifyBookingFailed({
+    required String mensaje,
+    int idCita = 0,
+  }) async {
+    try {
+      await _supabase.from('notificacion').insert({
+        'id_usuario': currentUserId,
+        'id_cita': idCita,
+        'titulo': 'No se pudo registrar tu cita',
+        'mensaje': mensaje,
+        'tipo': 'cita_error',
+      });
+    } catch (_) {
+      // No bloquear el flujo de error original si esto también falla.
+    }
+  }
 }

@@ -17,21 +17,34 @@ class SupabaseService {
     }).toList();
   }
 
-  static Future<void> createBooking({
+  /// Crea la cita y devuelve la fila insertada (con `id_cita`) para poder
+  /// confirmar que sí quedó registrada. Si Supabase no devuelve la fila
+  /// (insert bloqueado por RLS, por ejemplo) lanza un error explícito en
+  /// vez de reportar éxito silenciosamente.
+  static Future<Map<String, dynamic>> createBooking({
     required int idServicio,
     required DateTime date,
     required String time,
   }) async {
-    await _supabase.from('cita').insert({
-      'fecha': date.toIso8601String().split('T')[0],
-      'hora': '$time:00',
-      'estado': 'pendiente',
-      'id_usuario': 1, // Usuario quemado por ahora (necesita auth)
-      'id_vehiculo': 1, // Vehiculo quemado por ahora
-      'id_servicio': idServicio,
-      'notas': 'Reserva desde app móvil',
-      'monto': 0.0, // Idealmente enviar el monto
-    });
+    final result = await _supabase
+        .from('cita')
+        .insert({
+          'fecha': date.toIso8601String().split('T')[0],
+          'hora': '$time:00',
+          'estado': 'pendiente',
+          'id_usuario': 1, // Usuario quemado por ahora (necesita auth)
+          'id_vehiculo': 1, // Vehiculo quemado por ahora
+          'id_servicio': idServicio,
+          'notas': 'Reserva desde app móvil',
+          'monto': 0.0, // Idealmente enviar el monto
+        })
+        .select()
+        .maybeSingle();
+
+    if (result == null) {
+      throw Exception('La cita no se pudo confirmar (sin respuesta de la base de datos).');
+    }
+    return result;
   }
 
   static Future<List<Map<String, dynamic>>> getBookingsForDay(DateTime date) async {

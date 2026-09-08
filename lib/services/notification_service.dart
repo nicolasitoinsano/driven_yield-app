@@ -84,6 +84,31 @@ class NotificationService {
   /// Cancela el recordatorio de una cita (por ejemplo si el cliente la cancela).
   Future<void> cancelBookingReminder(int bookingId) => _plugin.cancel(bookingId);
 
+  /// Alerta local inmediata que confirma si el registro de la cita salió
+  /// bien o mal. No depende de Supabase Realtime ni de la Edge Function de
+  /// push, así que el usuario la ve al instante sin importar la conexión.
+  Future<void> showBookingResult({
+    required bool success,
+    required String message,
+  }) async {
+    if (!_initialized) await init();
+
+    await _plugin.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      success ? 'Cita registrada' : 'No se pudo registrar la cita',
+      message,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'bookings_channel',
+          'Recordatorios de citas',
+          channelDescription: 'Notificaciones de recordatorio para citas de Driven Yield',
+          importance: success ? Importance.high : Importance.max,
+          priority: success ? Priority.high : Priority.max,
+        ),
+      ),
+    );
+  }
+
   String _formatDate(DateTime date) =>
       '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
 
