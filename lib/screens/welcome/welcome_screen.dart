@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../models/app_section.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/navigation_bars.dart';
+import '../../widgets/location_card.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key, required this.navigate});
@@ -242,59 +243,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> with SingleTickerProvider
 
                   const SizedBox(height: 24),
 
-                  // Contact Info Card
+                  // API de Geolocalización y Mapas (LocationCard)
                   FadeTransition(
                     opacity: Tween<double>(begin: 0, end: 1).animate(
                       CurvedAnimation(parent: _anim, curve: const Interval(0.6, 1.0)),
                     ),
-                    child: Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: AppColors.panel.withOpacity(0.85),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'INFORMACIÓN DEL TALLER',
-                            style: TextStyle(
-                              color: Colors.white54,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          const Row(
-                            children: [
-                              Icon(Icons.location_on_outlined, color: AppColors.accent, size: 18),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Av. Principal #123, Taller Driven Yield',
-                                  style: TextStyle(color: Colors.white, fontSize: 12),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          const Row(
-                            children: [
-                              Icon(Icons.schedule_outlined, color: AppColors.accent, size: 18),
-                              SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  'Lunes a Sábado: 8:00 AM - 6:00 PM',
-                                  style: TextStyle(color: Colors.white, fontSize: 12),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+                    child: const LocationCard(),
                   ),
                   const SizedBox(height: 20),
                 ],
