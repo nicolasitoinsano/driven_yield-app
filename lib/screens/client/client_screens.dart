@@ -12,6 +12,7 @@ import '../../services/supabase_service.dart';
 import '../../services/notificacion_service.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/notification_bell.dart';
+import '../../widgets/location_card.dart';
 
 class ServicesScreen extends StatefulWidget {
   const ServicesScreen({super.key, required this.navigate, required this.services});
@@ -1316,6 +1317,13 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       }
                     ),
                   ),
+                ),
+
+                const SizedBox(height: 24),
+
+                FadeTransition(
+                  opacity: Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.6, 1.0))),
+                  child: const LocationCard(),
                 ),
               ],
             ),
