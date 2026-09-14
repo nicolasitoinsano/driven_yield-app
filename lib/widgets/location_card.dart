@@ -103,7 +103,7 @@ class LocationCard extends StatelessWidget {
                           Icon(Icons.gps_fixed_rounded, color: AppColors.accent, size: 16),
                           SizedBox(width: 6),
                           Text(
-                            'GPS: 4.5936° N, 74.1205° W',
+                            'GPS: 4.6067° N, 74.1558° W',
                             style: TextStyle(
                               color: AppColors.accent,
                               fontWeight: FontWeight.bold,

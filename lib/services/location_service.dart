@@ -1,18 +1,18 @@
 import 'package:url_launcher/url_launcher.dart';
 
 /// Servicio de Geolocalización y Mapas para el taller Driven Yield.
-/// Gestiona la ubicación geográfica en la Av. Primera de Mayo (Bogotá),
-/// trazado de rutas en tiempo real (Google Maps, Waze, Apple Maps) y llamadas.
+/// Gestiona la ubicación geográfica en la Cl. 6 Sur #78q-2 a 78q-34 (Bogotá),
+/// trazado de rutas en tiempo real (Google Maps, Waze, Apple Maps) y atención telefónica.
 class LocationService {
   LocationService._();
 
   static final LocationService instance = LocationService._();
 
-  // Coordenadas oficiales y datos del taller Driven Yield (Av. Primera de Mayo, Bogotá, Colombia)
-  static const double workshopLatitude = 4.5936;
-  static const double workshopLongitude = -74.1205;
+  // Coordenadas oficiales y datos del taller Driven Yield (Cl. 6 Sur #78q-2 a 78q-34, Bogotá, Colombia)
+  static const double workshopLatitude = 4.6067;
+  static const double workshopLongitude = -74.1558;
   static const String workshopName = 'Driven Yield — Taller Automotriz';
-  static const String workshopAddress = 'Av. Primera de Mayo, Bogotá, Colombia';
+  static const String workshopAddress = 'Cl. 6 Sur #78q-2 a 78q-34, Bogotá, Colombia';
   static const String workshopPhone = '+573001234567';
   static const String workshopPhoneFormatted = '+57 300 123 4567';
   static const String workshopHours = 'Lunes a Domingo: 9:00 AM - 9:00 PM';
