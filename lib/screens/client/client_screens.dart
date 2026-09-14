@@ -549,14 +549,36 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
         time: timeString,
       );
 
+      final appointmentDateTime = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        _selectedTime!.hour,
+        _selectedTime!.minute,
+      );
+
+      final bookingId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+      // Solicitar permisos de notificación nativa
+      await NotificationService.instance.requestPermissions();
+
+      // Programar recordatorios automáticos: día anterior (24h) y 2 horas antes de la cita
+      await NotificationService.instance.scheduleMultipleBookingReminders(
+        bookingId: bookingId,
+        serviceName: namesSummary,
+        appointmentDate: appointmentDateTime,
+        hoursBeforeList: const [24, 2],
+      );
+
+      // Notificación de confirmación inmediata
       await NotificationService.instance.showBookingResult(
         success: true,
-        message: 'Tu cita para "$namesSummary" quedó registrada correctamente.',
+        message: 'Tu cita para "$namesSummary" quedó registrada. Recordatorios programados para el día anterior y horas previas.',
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('¡Cita guardada exitosamente!')),
+          const SnackBar(content: Text('¡Cita guardada! Recordatorios del día anterior y horas previas programados.')),
         );
         widget.navigate(AppSection.dashboard);
       }
