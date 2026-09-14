@@ -109,7 +109,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                 AppTextField(
                   controller: _identifierController,
                   icon: Icons.badge_outlined,
-                  hint: 'Correo o usuario de administrador',
+                  hint: 'admin@drivenyield.com o admin123',
                   focused: true,
                   keyboardType: TextInputType.emailAddress,
                 ),
@@ -134,7 +134,35 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                     : PrimaryButton(label: 'ENTRAR AL PANEL', onPressed: _handleAdminLogin),
               ]),
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 14),
+            Center(
+              child: GestureDetector(
+                onTap: () {
+                  _identifierController.text = 'admin@drivenyield.com';
+                  _passwordController.text = 'admin123';
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.04),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.key_outlined, size: 14, color: AppColors.accent),
+                      SizedBox(width: 8),
+                      Text(
+                        'admin@drivenyield.com / admin123',
+                        style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
             const Center(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,

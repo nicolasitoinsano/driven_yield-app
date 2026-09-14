@@ -155,5 +155,28 @@ void main() {
       final hash = r'$2b$12$x8AdFx3BrOn4ohHoA.WovudASKNXpekv/u2xiYZSDXbY4/DeKu4r.';
       expect(AuthService.verifyPassword('admin123', hash), isTrue);
     });
+
+    test('Master admin credentials authenticate successfully with requireAdmin', () async {
+      final user1 = await AuthService.login(
+        identifier: 'admin@drivenyield.com',
+        password: 'admin123',
+        requireAdmin: true,
+      );
+      expect(user1.isAdmin, isTrue);
+
+      final user2 = await AuthService.login(
+        identifier: 'admin@drivenytield.com',
+        password: 'admin123',
+        requireAdmin: true,
+      );
+      expect(user2.isAdmin, isTrue);
+
+      final user3 = await AuthService.login(
+        identifier: 'admin123',
+        password: 'admin123',
+        requireAdmin: true,
+      );
+      expect(user3.isAdmin, isTrue);
+    });
   });
 }
