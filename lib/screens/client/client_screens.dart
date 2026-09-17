@@ -9,6 +9,8 @@ import '../../widgets/navigation_bars.dart';
 import '../../services/supabase_service.dart';
 import '../../services/notificacion_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/email_service.dart';
+import '../../services/auth_service.dart';
 import '../../widgets/notification_bell.dart';
 
 class ServicesScreen extends StatefulWidget {
@@ -313,6 +315,29 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
         success: true,
         message: 'Tu cita de "${selectedService.name}" quedó registrada correctamente.',
       );
+
+      // Enviar correo de confirmación (no bloquea el flujo si falla).
+      final userEmail = AuthService.currentUser?.email;
+      if (userEmail != null && userEmail.isNotEmpty) {
+        try {
+          final dateStr = '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}';
+          await EmailService.sendBookingConfirmation(
+            recipientEmail: userEmail,
+            clientName: AuthService.currentUser?.name ?? 'Cliente Driven Yield',
+            serviceName: selectedService.name,
+            serviceDescription: selectedService.description,
+            date: dateStr,
+            time: timeString,
+            price: selectedService.price,
+          );
+        } catch (emailError) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Cita guardada, pero no se pudo enviar el correo: $emailError')),
+            );
+          }
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('¡Cita guardada exitosamente!')));
