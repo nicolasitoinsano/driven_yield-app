@@ -83,24 +83,30 @@ begin
     );
   end loop;
 
-  -- Dispara la Edge Function que manda el push (no bloquea el insert si falla)
-  perform net.http_post(
-    url := current_setting('app.settings.edge_function_url', true),
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', concat('Bearer ', current_setting('app.settings.edge_function_anon_key', true))
-    ),
-    body := jsonb_build_object(
-      'id_cita', new.id_cita,
-      'id_usuario', new.id_usuario,
-      'titulo', 'Cita registrada',
-      'mensaje', concat('Tu cita de ', coalesce(v_servicio_nombre, 'servicio'), ' para el ', new.fecha, ' a las ', new.hora, ' fue registrada.')
-    )
-  );
+  -- Dispara la Edge Function que manda el push. Aislado en su propio bloque
+  -- para que un fallo del push NUNCA revierta las notificaciones in-app de arriba.
+  begin
+    perform net.http_post(
+      url := current_setting('app.settings.edge_function_url', true),
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'Authorization', concat('Bearer ', current_setting('app.settings.edge_function_anon_key', true))
+      ),
+      body := jsonb_build_object(
+        'id_cita', new.id_cita,
+        'id_usuario', new.id_usuario,
+        'titulo', 'Cita registrada',
+        'mensaje', concat('Tu cita de ', coalesce(v_servicio_nombre, 'servicio'), ' para el ', new.fecha, ' a las ', new.hora, ' fue registrada.')
+      )
+    );
+  exception when others then
+    raise notice 'No se pudo enviar el push de la cita %: %', new.id_cita, sqlerrm;
+  end;
 
   return new;
 exception when others then
   -- Nunca romper el insert de la cita por un fallo de notificacion/push
+  raise notice 'fn_notificar_nueva_cita fallo para cita %: %', new.id_cita, sqlerrm;
   return new;
 end;
 $$;

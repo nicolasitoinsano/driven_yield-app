@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'auth_service.dart';
+
 class AppNotification {
   const AppNotification({
     required this.id,
@@ -32,8 +34,8 @@ class AppNotification {
 class NotificacionService {
   static final _supabase = Supabase.instance.client;
 
-  /// TODO: reemplazar por el id del usuario autenticado real.
-  static const int currentUserId = 1;
+  /// Id del usuario autenticado (o 1 como fallback de pruebas, igual que supabase_service.dart).
+  static int get currentUserId => AuthService.currentUserId ?? 1;
 
   static Future<List<AppNotification>> getNotifications() async {
     final data = await _supabase

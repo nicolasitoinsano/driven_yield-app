@@ -81,8 +81,7 @@ class _DrivenYieldAppState extends State<DrivenYieldApp> {
       AppSection.adminLogin => AdminLoginScreen(navigate: _navigate),
       AppSection.adminDashboard => AdminDashboardScreen(
           navigate: _navigate,
-          clientCount: _adminData.clients.length,
-          activeServiceCount: _adminData.activeServices.length,
+          adminData: _adminData,
         ),
       AppSection.adminClients => AdminClientsScreen(
           navigate: _navigate,
@@ -94,6 +93,7 @@ class _DrivenYieldAppState extends State<DrivenYieldApp> {
           navigate: _navigate,
           services: _adminData.services,
           onSave: _saveService,
+          onToggleActive: _adminData.toggleServiceActive,
           onDelete: _adminData.deleteService,
         ),
     };

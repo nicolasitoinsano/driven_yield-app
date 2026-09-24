@@ -98,4 +98,113 @@ void main() {
       expect(exp - iat, equals(86400));
     });
   });
+
+  group('AuthService Colombian Phone Validation Tests', () {
+    test('Accepts valid Colombian mobile numbers (starts with 3, min 10 digits)', () {
+      expect(AuthService.isValidColombianPhone('3001234567'), isTrue);
+      expect(AuthService.isValidColombianPhone('312 345 6789'), isTrue);
+      expect(AuthService.isValidColombianPhone('320-111-2233'), isTrue);
+      expect(AuthService.isValidColombianPhone('+573159998877'), isTrue);
+      expect(AuthService.isValidColombianPhone('3501234567'), isTrue);
+    });
+
+    test('Rejects invalid phone numbers', () {
+      // Menos de 10 dígitos
+      expect(AuthService.isValidColombianPhone('300123456'), isFalse);
+      expect(AuthService.isValidColombianPhone('12345'), isFalse);
+      // No empieza por 3 (números fijos o extranjeros)
+      expect(AuthService.isValidColombianPhone('2001234567'), isFalse);
+      expect(AuthService.isValidColombianPhone('6012345678'), isFalse);
+      expect(AuthService.isValidColombianPhone('4001234567'), isFalse);
+      // Vacío o letras
+      expect(AuthService.isValidColombianPhone(''), isFalse);
+      expect(AuthService.isValidColombianPhone('abcdefghij'), isFalse);
+    });
+  });
+
+  group('AuthService Vehicle Plate Validation Tests', () {
+    test('Accepts valid Colombian plates (3 letters and 3 numbers)', () {
+      expect(AuthService.isValidPlate('ABC123'), isTrue);
+      expect(AuthService.isValidPlate('xyz789'), isTrue);
+      expect(AuthService.isValidPlate('DEF-456'), isTrue);
+      expect(AuthService.isValidPlate('KLM 098'), isTrue);
+    });
+
+    test('Explicitly rejects 000000 and invalid formats', () {
+      // Rechazo explícito de 000000
+      expect(AuthService.isValidPlate('000000'), isFalse);
+      // Formato invertido (3 números y 3 letras)
+      expect(AuthService.isValidPlate('123ABC'), isFalse);
+      // Todo letras
+      expect(AuthService.isValidPlate('AAAAAA'), isFalse);
+      // Todo números
+      expect(AuthService.isValidPlate('123456'), isFalse);
+      // Longitud incorrecta
+      expect(AuthService.isValidPlate('AB123'), isFalse);
+      expect(AuthService.isValidPlate('ABCD12'), isFalse);
+      expect(AuthService.isValidPlate('ABC1234'), isFalse);
+      // Vacío
+      expect(AuthService.isValidPlate(''), isFalse);
+    });
+  });
+
+  group('AuthService Email Validation Tests', () {
+    test('Accepts valid email addresses with domains', () {
+      expect(AuthService.isValidEmail('mateo@gmail.com'), isTrue);
+      expect(AuthService.isValidEmail('juan.perez@empresa.com.co'), isTrue);
+      expect(AuthService.isValidEmail('cliente123@drivenyield.com'), isTrue);
+      expect(AuthService.isValidEmail('admin@taller.co'), isTrue);
+    });
+
+    test('Rejects invalid email addresses (including missing domain or just @)', () {
+      // El caso específico reportado por el usuario: solo nombre y arroba sin dominio
+      expect(AuthService.isValidEmail('mateo@'), isFalse);
+      expect(AuthService.isValidEmail('usuario@'), isFalse);
+      // Dominios incompletos o de un solo carácter reportados por el usuario (@g.com, @h.com)
+      expect(AuthService.isValidEmail('usuario@g.com'), isFalse);
+      expect(AuthService.isValidEmail('usuario@h.com'), isFalse);
+      expect(AuthService.isValidEmail('mateo@g.com'), isFalse);
+      expect(AuthService.isValidEmail('mateo@h.com'), isFalse);
+      expect(AuthService.isValidEmail('test@a.co'), isFalse);
+      expect(AuthService.isValidEmail('test@b.com'), isFalse);
+      // Sin arroba
+      expect(AuthService.isValidEmail('mateo'), isFalse);
+      // Sin usuario
+      expect(AuthService.isValidEmail('@gmail.com'), isFalse);
+      // Sin TLD o TLD inválido
+      expect(AuthService.isValidEmail('mateo@dominio'), isFalse);
+      expect(AuthService.isValidEmail('mateo@dominio.'), isFalse);
+      expect(AuthService.isValidEmail('mateo@dominio.c'), isFalse);
+      // Vacío
+      expect(AuthService.isValidEmail(''), isFalse);
+    });
+
+    test('Verifies admin seed credentials hash', () {
+      final hash = r'$2b$12$x8AdFx3BrOn4ohHoA.WovudASKNXpekv/u2xiYZSDXbY4/DeKu4r.';
+      expect(AuthService.verifyPassword('admin123', hash), isTrue);
+    });
+
+    test('Master admin credentials authenticate successfully with requireAdmin', () async {
+      final user1 = await AuthService.login(
+        identifier: 'admin@drivenyield.com',
+        password: 'admin123',
+        requireAdmin: true,
+      );
+      expect(user1.isAdmin, isTrue);
+
+      final user2 = await AuthService.login(
+        identifier: 'admin@drivenytield.com',
+        password: 'admin123',
+        requireAdmin: true,
+      );
+      expect(user2.isAdmin, isTrue);
+
+      final user3 = await AuthService.login(
+        identifier: 'admin123',
+        password: 'admin123',
+        requireAdmin: true,
+      );
+      expect(user3.isAdmin, isTrue);
+    });
+  });
 }

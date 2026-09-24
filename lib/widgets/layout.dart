@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:ui';
 
 import '../core/constants/app_colors.dart';
-
-import 'dart:ui';
 class AppPage extends StatelessWidget {
   const AppPage({super.key, required this.child, this.bottomNavigation});
 
@@ -83,6 +83,10 @@ class AppTextField extends StatelessWidget {
     this.focused = false,
     this.maxLines = 1,
     this.keyboardType,
+    this.inputFormatters,
+    this.textCapitalization = TextCapitalization.none,
+    this.maxLength,
+    this.onChanged,
   });
 
   final TextEditingController? controller;
@@ -93,6 +97,10 @@ class AppTextField extends StatelessWidget {
   final bool focused;
   final int maxLines;
   final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
+  final TextCapitalization textCapitalization;
+  final int? maxLength;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -105,6 +113,11 @@ class AppTextField extends StatelessWidget {
       obscureText: obscure,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
+      textCapitalization: textCapitalization,
+      maxLength: maxLength,
+      buildCounter: maxLength != null ? (_, {required currentLength, required isFocused, maxLength}) => null : null,
+      onChanged: onChanged,
       style: const TextStyle(fontSize: 13),
       decoration: InputDecoration(
         filled: true,
@@ -115,6 +128,55 @@ class AppTextField extends StatelessWidget {
         labelStyle: const TextStyle(color: Colors.white54, fontSize: 12),
         prefixIcon: icon == null ? null : Icon(icon, color: Colors.white38, size: 20),
         suffixIcon: suffix,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 16),
+        enabledBorder: outline,
+        focusedBorder: outline.copyWith(borderSide: const BorderSide(color: AppColors.accent)),
+      ),
+    );
+  }
+}
+
+class AppDropdownField<T> extends StatelessWidget {
+  const AppDropdownField({
+    super.key,
+    this.value,
+    required this.hint,
+    required this.items,
+    required this.onChanged,
+    this.icon,
+    this.focused = false,
+  });
+
+  final T? value;
+  final String hint;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?>? onChanged;
+  final IconData? icon;
+  final bool focused;
+
+  @override
+  Widget build(BuildContext context) {
+    final outline = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: focused ? AppColors.accent : const Color(0xFF363636)),
+    );
+
+    return DropdownButtonFormField<T>(
+      value: value,
+      items: items,
+      onChanged: onChanged,
+      dropdownColor: AppColors.panel,
+      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white54, size: 20),
+      isExpanded: true,
+      menuMaxHeight: 320,
+      style: const TextStyle(color: Colors.white, fontSize: 13),
+      hint: Text(hint, style: const TextStyle(color: Colors.white30, fontSize: 12)),
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: AppColors.field,
+        labelText: value == null ? null : hint,
+        labelStyle: const TextStyle(color: Colors.white54, fontSize: 12),
+        prefixIcon: icon == null ? null : Icon(icon, color: Colors.white38, size: 20),
         contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 16),
         enabledBorder: outline,
         focusedBorder: outline.copyWith(borderSide: const BorderSide(color: AppColors.accent)),
@@ -217,3 +279,66 @@ class SecondaryActionCard extends StatelessWidget {
         ),
       );
 }
+
+class StatusBadge extends StatelessWidget {
+  const StatusBadge({super.key, required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final cleanStatus = status.toLowerCase().trim();
+    Color bg;
+    Color fg;
+    String label;
+    IconData icon;
+
+    switch (cleanStatus) {
+      case 'confirmada':
+      case 'completada':
+        bg = AppColors.success.withOpacity(0.18);
+        fg = AppColors.success;
+        label = 'Confirmada';
+        icon = Icons.check_circle_outline;
+        break;
+      case 'cancelada':
+        bg = AppColors.danger.withOpacity(0.18);
+        fg = AppColors.danger;
+        label = 'Cancelada';
+        icon = Icons.cancel_outlined;
+        break;
+      default:
+        bg = AppColors.warning.withOpacity(0.18);
+        fg = AppColors.warning;
+        label = 'Pendiente';
+        icon = Icons.hourglass_top_outlined;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: fg.withOpacity(0.35), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: fg),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: fg,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

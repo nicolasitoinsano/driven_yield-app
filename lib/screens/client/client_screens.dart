@@ -1,17 +1,21 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/car_brands.dart';
 import '../../models/app_section.dart';
 import '../../models/managed_service.dart';
 import '../../widgets/layout.dart';
 import '../../widgets/navigation_bars.dart';
+import '../../services/auth_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/notificacion_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/email_service.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/notification_bell.dart';
+import '../../widgets/location_card.dart';
 
 class ServicesScreen extends StatefulWidget {
   const ServicesScreen({super.key, required this.navigate, required this.services});
@@ -24,6 +28,8 @@ class ServicesScreen extends StatefulWidget {
 
 class _ServicesScreenState extends State<ServicesScreen> with SingleTickerProviderStateMixin {
   late AnimationController _anim;
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -33,12 +39,19 @@ class _ServicesScreenState extends State<ServicesScreen> with SingleTickerProvid
 
   @override
   void dispose() {
+    _searchCtrl.dispose();
     _anim.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final filteredServices = widget.services.where((s) {
+      if (_searchQuery.isEmpty) return true;
+      return s.name.toLowerCase().contains(_searchQuery) ||
+          s.description.toLowerCase().contains(_searchQuery);
+    }).toList();
+
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: Stack(
@@ -71,35 +84,90 @@ class _ServicesScreenState extends State<ServicesScreen> with SingleTickerProvid
               children: [
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.fromLTRB(24, 40, 24, 20),
+                    padding: const EdgeInsets.fromLTRB(24, 30, 24, 20),
                     children: [
                       FadeTransition(
                         opacity: Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.0, 0.3))),
                         child: SlideTransition(
                           position: Tween<Offset>(begin: const Offset(0, -0.2), end: Offset.zero).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.0, 0.4, curve: Curves.easeOut))),
-                          child: const Text('SERVICIOS', style: TextStyle(fontSize: 40, fontWeight: FontWeight.w900, height: 1.0, letterSpacing: -1.0, color: Colors.white)),
+                          child: const Text('SERVICIOS', style: TextStyle(fontSize: 38, fontWeight: FontWeight.w900, height: 1.0, letterSpacing: -1.0, color: Colors.white)),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       FadeTransition(
                         opacity: Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.2, 0.5))),
-                        child: const Text('Descubre todo lo que podemos hacer por tu vehículo con la mejor calidad y cuidado experto.', style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
+                        child: const Text('Encuentra el servicio adecuado para tu auto y agenda en segundos.', style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
                       ),
-                      const SizedBox(height: 35),
-                      if (widget.services.isEmpty)
+                      const SizedBox(height: 20),
+
+                      // Buscador de servicios intuitivo
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.panel.withOpacity(0.85),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: TextField(
+                          controller: _searchCtrl,
+                          onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: 'Buscar servicio (ej: aceite, frenos, alineación)...',
+                            hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                            prefixIcon: const Icon(Icons.search_rounded, color: AppColors.accent, size: 20),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, color: Colors.white54, size: 18),
+                                    onPressed: () {
+                                      _searchCtrl.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                  )
+                                : null,
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${filteredServices.length} SERVICIOS DISPONIBLES',
+                            style: const TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1),
+                          ),
+                          if (_searchQuery.isNotEmpty)
+                            InkWell(
+                              onTap: () {
+                                _searchCtrl.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                              child: const Text('Limpiar filtro', style: TextStyle(color: AppColors.accent, fontSize: 11, fontWeight: FontWeight.w700)),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      if (filteredServices.isEmpty)
                         FadeTransition(
                           opacity: Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.4, 1.0))),
-                          child: const EmptyState(icon: Icons.design_services_outlined, label: 'No hay servicios activos en este momento.'),
+                          child: const EmptyState(icon: Icons.search_off_rounded, label: 'No se encontraron servicios con ese término de búsqueda.'),
                         )
                       else
-                        for (int i = 0; i < widget.services.length; i++) ...[
+                        for (int i = 0; i < filteredServices.length; i++) ...[
                           _AnimatedServiceCard(
-                            service: widget.services[i],
+                            service: filteredServices[i],
                             index: i,
                             animation: _anim,
-                            onTap: () => widget.navigate(AppSection.booking),
+                            onTap: () {
+                              final origIndex = widget.services.indexOf(filteredServices[i]);
+                              globalSelectedServiceIndex = origIndex >= 0 ? origIndex : 0;
+                              widget.navigate(AppSection.booking);
+                            },
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 14),
                         ],
                     ],
                   ),
@@ -196,16 +264,34 @@ class _AnimatedServiceCardState extends State<_AnimatedServiceCard> with SingleT
                         const SizedBox(height: 5),
                         Text(widget.service.description, style: const TextStyle(color: Colors.white54, fontSize: 12, height: 1.4)),
                         const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(color: AppColors.accent.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-                          child: Text(widget.service.price, style: const TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w800)),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(color: AppColors.accent.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+                              child: Text(widget.service.price, style: const TextStyle(color: AppColors.accent, fontSize: 13, fontWeight: FontWeight.w800)),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: AppColors.accent,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('AGENDAR', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.8)),
+                                  SizedBox(width: 4),
+                                  Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 12),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 16),
                 ],
               ),
             ),
@@ -230,7 +316,7 @@ class BookingScreen extends StatefulWidget {
 
 class _BookingScreenState extends State<BookingScreen> with SingleTickerProviderStateMixin {
   int _step = 0; // 0 = Date/Time, 1 = Confirm
-  int _serviceIndex = globalSelectedServiceIndex;
+  late final Set<String> _selectedServiceIds;
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
   bool _isLoading = false;
@@ -240,6 +326,11 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
   void initState() {
     super.initState();
     _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..forward();
+    _selectedServiceIds = {};
+    if (widget.services.isNotEmpty) {
+      final initialIndex = globalSelectedServiceIndex.clamp(0, widget.services.length - 1);
+      _selectedServiceIds.add(widget.services[initialIndex].id);
+    }
   }
 
   @override
@@ -248,12 +339,38 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
     super.dispose();
   }
 
+  List<ManagedService> get _selectedServices =>
+      widget.services.where((s) => _selectedServiceIds.contains(s.id)).toList();
+
+  double get _totalPrice =>
+      _selectedServices.fold<double>(0.0, (sum, s) => sum + SupabaseService.parsePrice(s.price));
+
+  void _toggleService(ManagedService service) {
+    setState(() {
+      if (_selectedServiceIds.contains(service.id)) {
+        if (_selectedServiceIds.length > 1) {
+          _selectedServiceIds.remove(service.id);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Debes seleccionar al menos un servicio para la cita.'),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+      } else {
+        _selectedServiceIds.add(service.id);
+      }
+    });
+  }
+
   Future<void> _pickDate() async {
+    final now = DateTime.now();
     final date = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 90)),
+      initialDate: _selectedDate ?? (now.hour >= 20 ? now.add(const Duration(days: 1)) : now),
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 90)),
       builder: (context, child) => Theme(
         data: ThemeData.dark().copyWith(
           colorScheme: const ColorScheme.dark(
@@ -268,13 +385,58 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
     );
     if (date != null && mounted) {
       setState(() => _selectedDate = date);
+
+      // Si ya se había elegido una hora, revalidar para la nueva fecha
+      if (_selectedTime != null) {
+        final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+        if (isToday) {
+          final apptDateTime = DateTime(date.year, date.month, date.day, _selectedTime!.hour, _selectedTime!.minute);
+          if (apptDateTime.isBefore(now)) {
+            setState(() => _selectedTime = null);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('La hora que tenías seleccionada ya pasó para el día de hoy. Por favor selecciona una nueva hora.'),
+                backgroundColor: Colors.orangeAccent,
+              ),
+            );
+            return;
+          }
+        }
+
+        final timeString = '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
+        final isBooked = await SupabaseService.isTimeSlotBooked(date, timeString);
+        if (isBooked && mounted) {
+          setState(() => _selectedTime = null);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('La hora $timeString ya está ocupada para este día. Por favor elige otra hora.'),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+      }
     }
   }
 
   Future<void> _pickTime() async {
+    final now = DateTime.now();
+    TimeOfDay initial = _selectedTime ?? const TimeOfDay(hour: 9, minute: 0);
+    if (_selectedTime == null) {
+      if (_selectedDate != null && _selectedDate!.year == now.year && _selectedDate!.month == now.month && _selectedDate!.day == now.day) {
+        if (now.hour >= 9 && now.hour < 21) {
+          initial = TimeOfDay(hour: (now.hour + 1).clamp(9, 21), minute: 0);
+        } else {
+          initial = const TimeOfDay(hour: 9, minute: 0);
+        }
+      } else {
+        initial = const TimeOfDay(hour: 9, minute: 0);
+      }
+    }
+
     final time = await showTimePicker(
       context: context,
-      initialTime: const TimeOfDay(hour: 8, minute: 0),
+      initialTime: initial,
+      helpText: 'HORARIO DE ATENCIÓN: 9:00 AM - 9:00 PM',
       builder: (context, child) => Theme(
         data: ThemeData.dark().copyWith(
           colorScheme: const ColorScheme.dark(
@@ -287,33 +449,135 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
         child: child!,
       ),
     );
-    if (time != null && mounted) {
-      setState(() => _selectedTime = time);
-    }
-  }
 
-  Future<void> _confirmBooking(ManagedService selectedService) async {
-    if (_selectedDate == null || _selectedTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor selecciona fecha y hora')));
+    if (time == null || !mounted) return;
+
+    // 1. Validar que esté entre 9:00 AM y 9:00 PM
+    if (!SupabaseService.isValidOperatingHour(time.hour, time.minute)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Horario no permitido. Las citas solo se pueden agendar entre las 9:00 AM y las 9:00 PM.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
       return;
     }
-    
+
+    // 2. Validar que no sea antes de la hora actual si la fecha es hoy
+    if (_selectedDate != null) {
+      final isToday = _selectedDate!.year == now.year &&
+          _selectedDate!.month == now.month &&
+          _selectedDate!.day == now.day;
+      if (isToday) {
+        final apptDateTime = DateTime(
+          _selectedDate!.year,
+          _selectedDate!.month,
+          _selectedDate!.day,
+          time.hour,
+          time.minute,
+        );
+        if (apptDateTime.isBefore(now)) {
+          final nowStr = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No puedes seleccionar una hora anterior a la hora actual ($nowStr).'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          return;
+        }
+      }
+
+      // 3. Validar disponibilidad de horario (evitar duplicados)
+      final timeString = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+      final isBooked = await SupabaseService.isTimeSlotBooked(_selectedDate!, timeString);
+      if (isBooked && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('El horario $timeString ya se encuentra reservado por otra cita en este día. Por favor selecciona otra hora.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
+      }
+    }
+
+    setState(() => _selectedTime = time);
+  }
+
+  Future<void> _confirmBooking(List<ManagedService> selectedServices) async {
+    if (selectedServices.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor selecciona al menos un servicio')),
+      );
+      return;
+    }
+    if (_selectedDate == null || _selectedTime == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor selecciona fecha y hora')),
+      );
+      return;
+    }
+
+    if (!SupabaseService.isValidOperatingHour(_selectedTime!.hour, _selectedTime!.minute)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Las citas solo se pueden agendar entre las 9:00 AM y las 9:00 PM.'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
+    final now = DateTime.now();
+    final apptDateTime = DateTime(
+      _selectedDate!.year,
+      _selectedDate!.month,
+      _selectedDate!.day,
+      _selectedTime!.hour,
+      _selectedTime!.minute,
+    );
+    if (apptDateTime.isBefore(now)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No puedes agendar una cita antes de la hora actual.'), backgroundColor: Colors.redAccent),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
-    
+
+    final namesSummary = selectedServices.map((s) => s.name).join(', ');
+    final timeString = '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
+
     try {
-      final timeString = '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
-      
-      // createBooking ahora confirma el insert (o lanza error si Supabase
-      // no devolvió la fila), así la alerta refleja el estado real.
       await SupabaseService.createBooking(
-        idServicio: int.parse(selectedService.id),
+        services: selectedServices,
         date: _selectedDate!,
         time: timeString,
       );
 
+      final appointmentDateTime = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        _selectedTime!.hour,
+        _selectedTime!.minute,
+      );
+
+      final bookingId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+      // Solicitar permisos de notificación nativa
+      await NotificationService.instance.requestPermissions();
+
+      // Programar recordatorios automáticos: día anterior (24h) y 2 horas antes de la cita
+      await NotificationService.instance.scheduleMultipleBookingReminders(
+        bookingId: bookingId,
+        serviceName: namesSummary,
+        appointmentDate: appointmentDateTime,
+        hoursBeforeList: const [24, 2],
+      );
+
+      // Notificación de confirmación inmediata
       await NotificationService.instance.showBookingResult(
         success: true,
-        message: 'Tu cita de "${selectedService.name}" quedó registrada correctamente.',
+        message: 'Tu cita para "$namesSummary" quedó registrada. Recordatorios programados para el día anterior y horas previas.',
       );
 
       // Enviar correo de confirmación (no bloquea el flujo si falla).
@@ -340,18 +604,20 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('¡Cita guardada exitosamente!')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('¡Cita guardada! Recordatorios del día anterior y horas previas programados.')),
+        );
         widget.navigate(AppSection.dashboard);
       }
     } catch (e) {
-      final errorMessage = 'No pudimos registrar tu cita de "${selectedService.name}": $e';
+      final errorMessage = 'No pudimos registrar tu cita: $e';
 
-      // Alerta local inmediata + registro en el historial de notificaciones,
-      // para que el fallo quede visible aunque el usuario cierre la app.
       await NotificationService.instance.showBookingResult(success: false, message: errorMessage);
       await NotificacionService.notifyBookingFailed(mensaje: errorMessage);
 
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -360,9 +626,7 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     final hasServices = widget.services.isNotEmpty;
-    final safeServiceIndex = _serviceIndex >= widget.services.length ? (widget.services.isEmpty ? 0 : widget.services.length - 1) : _serviceIndex;
-    final selectedService = hasServices ? widget.services[safeServiceIndex] : null;
-    const steps = ['Fecha y Hora', 'Confirmación'];
+    const steps = ['Servicios y Horario', 'Confirmación'];
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -450,7 +714,7 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
                       opacity: Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.4, 0.8))),
                       child: SlideTransition(
                         position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.4, 0.8, curve: Curves.easeOut))),
-                        child: _buildStep(selectedService),
+                        child: _buildStep(),
                       ),
                     ),
                   ),
@@ -463,15 +727,52 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
                           width: double.infinity,
                           child: FilledButton(
                             onPressed: hasServices
-                                ? () {
+                                ? () async {
                                     if (_step < 1) {
+                                      if (_selectedServices.isEmpty) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Selecciona al menos un servicio para continuar')),
+                                        );
+                                        return;
+                                      }
                                       if (_selectedDate == null || _selectedTime == null) {
-                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Selecciona fecha y hora para continuar')));
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Selecciona fecha y hora para continuar')),
+                                        );
+                                        return;
+                                      }
+                                      if (!SupabaseService.isValidOperatingHour(_selectedTime!.hour, _selectedTime!.minute)) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Las citas solo se pueden agendar entre las 9:00 AM y las 9:00 PM.')),
+                                        );
+                                        return;
+                                      }
+                                      final now = DateTime.now();
+                                      final apptDateTime = DateTime(
+                                        _selectedDate!.year,
+                                        _selectedDate!.month,
+                                        _selectedDate!.day,
+                                        _selectedTime!.hour,
+                                        _selectedTime!.minute,
+                                      );
+                                      if (apptDateTime.isBefore(now)) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('No puedes agendar antes de la hora actual.')),
+                                        );
+                                        return;
+                                      }
+                                      final timeStr = '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}';
+                                      final isBooked = await SupabaseService.isTimeSlotBooked(_selectedDate!, timeStr);
+                                      if (isBooked) {
+                                        if (!mounted) return;
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('El horario $timeStr ya está reservado. Por favor elige otro.')),
+                                        );
                                         return;
                                       }
                                       setState(() => _step++);
                                     } else {
-                                      if (selectedService != null) _confirmBooking(selectedService);
+                                      _confirmBooking(_selectedServices);
                                     }
                                   }
                                 : () => widget.navigate(AppSection.services),
@@ -496,62 +797,179 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
     );
   }
 
-  Widget _buildStep(ManagedService? selectedService) {
-    if (widget.services.isEmpty) return const EmptyState(icon: Icons.design_services_outlined, label: 'No hay servicios activos para reservar.');
-    
+  Widget _buildStep() {
+    if (widget.services.isEmpty) {
+      return const EmptyState(icon: Icons.design_services_outlined, label: 'No hay servicios activos para reservar.');
+    }
+
     if (_step == 0) {
-      final dateStr = _selectedDate != null ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}' : 'Seleccionar fecha';
-      final timeStr = _selectedTime != null ? '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}' : 'Seleccionar hora';
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      final now = DateTime.now();
+      final isToday = _selectedDate != null &&
+          _selectedDate!.year == now.year &&
+          _selectedDate!.month == now.month &&
+          _selectedDate!.day == now.day;
+      final dateStr = _selectedDate != null
+          ? '${_selectedDate!.day.toString().padLeft(2, '0')}/${_selectedDate!.month.toString().padLeft(2, '0')}/${_selectedDate!.year}${isToday ? ' (Hoy)' : ''}'
+          : 'Seleccionar fecha';
+      final timeStr = _selectedTime != null
+          ? '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}'
+          : 'Seleccionar hora (9:00 AM - 9:00 PM)';
+
+      return ListView(
+        padding: EdgeInsets.zero,
         children: [
+          // 1. Selector de Servicios (uno o más, sin duplicados)
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: AppColors.panel.withOpacity(0.85),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.white12, width: 1.5),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('SERVICIO SELECCIONADO', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5)),
-                const SizedBox(height: 12),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.accent.withOpacity(0.15), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.handyman_outlined, color: AppColors.accent, size: 20)),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text(selectedService!.name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w800))),
+                    Row(
+                      children: [
+                        const Text('1. SERVICIOS ', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.2)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.accent.withOpacity(0.4)),
+                          ),
+                          child: Text(
+                            '${_selectedServices.length} sel.',
+                            style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold, fontSize: 10),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      'Total: ${SupabaseService.formatPrice(_totalPrice)}',
+                      style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w900, fontSize: 14),
+                    ),
                   ],
                 ),
+                const SizedBox(height: 6),
+                const Text('Toca para seleccionar uno o más servicios (sin duplicados):', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                const SizedBox(height: 12),
+                ...widget.services.map((s) {
+                  final isSelected = _selectedServiceIds.contains(s.id);
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: InkWell(
+                      onTap: () => _toggleService(s),
+                      borderRadius: BorderRadius.circular(12),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppColors.accent.withOpacity(0.16) : Colors.white.withOpacity(0.04),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected ? AppColors.accent : Colors.white12,
+                            width: isSelected ? 1.5 : 1.0,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                              color: isSelected ? AppColors.accent : Colors.white38,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                s.name,
+                                style: TextStyle(
+                                  color: isSelected ? Colors.white : Colors.white70,
+                                  fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              s.price,
+                              style: TextStyle(
+                                color: isSelected ? AppColors.accent : Colors.white54,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
+          // 2. Selección de Fecha
           Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: AppColors.panel.withOpacity(0.85),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Colors.white12, width: 1.5),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('CUÁNDO LO NECESITAS', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5)),
-                const SizedBox(height: 20),
-                _PickerButton(icon: Icons.calendar_month_outlined, label: dateStr, onTap: _pickDate),
-                const SizedBox(height: 16),
-                _PickerButton(icon: Icons.access_time_outlined, label: timeStr, onTap: _pickTime),
+                const Text('2. FECHA DE LA CITA', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.2)),
+                const SizedBox(height: 14),
+                _PickerButton(icon: Icons.calendar_month_rounded, label: dateStr, onTap: _pickDate),
               ],
             ),
           ),
+          const SizedBox(height: 16),
+
+          // 3. Selección de Hora con reloj (9 AM a 9 PM)
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppColors.panel.withOpacity(0.85),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white12, width: 1.5),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('3. HORA DE LA CITA', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.2)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: const Text('9:00 AM - 9:00 PM', style: TextStyle(color: AppColors.accent, fontSize: 10, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text('Horario de atención permitido. No se admiten horas pasadas ni horarios ocupados.', style: TextStyle(color: Colors.white38, fontSize: 11)),
+                const SizedBox(height: 14),
+                _PickerButton(icon: Icons.access_time_rounded, label: timeStr, onTap: _pickTime),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
         ],
       );
     }
-    
+
     // Step 1: Confirmation
     final dateStr = _selectedDate != null ? '${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}' : 'No seleccionada';
     final timeStr = _selectedTime != null ? '${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}' : 'No seleccionada';
@@ -559,20 +977,65 @@ class _BookingScreenState extends State<BookingScreen> with SingleTickerProvider
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.panel.withOpacity(0.85),
+        color: AppColors.panel.withOpacity(0.9),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white12, width: 1.5),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))],
+        border: Border.all(color: AppColors.accent.withOpacity(0.4), width: 1.5),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 18, offset: const Offset(0, 8))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('RESUMEN DE CITA', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1.5)),
-          const SizedBox(height: 24),
-          _SummaryRow(label: 'Servicio', value: selectedService!.name),
-          _SummaryRow(label: 'Fecha', value: dateStr),
-          _SummaryRow(label: 'Hora', value: timeStr),
-          _SummaryRow(label: 'Monto Estimado', value: selectedService.price, valueColor: AppColors.accent, last: true),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('RESUMEN DE RESERVA', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1.5)),
+              const StatusBadge(status: 'pendiente'),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const Text('SERVICIOS SELECCIONADOS:', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.1)),
+          const SizedBox(height: 8),
+          ..._selectedServices.map((s) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle, color: AppColors.accent, size: 14),
+                const SizedBox(width: 8),
+                Expanded(child: Text(s.name, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600))),
+                Text(s.price, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+              ],
+            ),
+          )),
+          const Divider(color: Colors.white12, height: 24),
+          _SummaryRow(label: 'Fecha solicitada', value: dateStr),
+          _SummaryRow(label: 'Hora acordada', value: timeStr),
+          _SummaryRow(
+            label: 'Monto Total Estimado',
+            value: SupabaseService.formatPrice(_totalPrice),
+            valueColor: AppColors.accent,
+            last: true,
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline, color: AppColors.accent, size: 18),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Se enviará un recordatorio y confirmación en tiempo real a tu perfil.',
+                    style: TextStyle(color: Colors.white70, fontSize: 11, height: 1.3),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -638,6 +1101,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
+  DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   int _selectedDay = DateTime.now().day;
   bool _isLoadingEvents = false;
   List<String> _dayEvents = [];
@@ -660,8 +1124,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
 
   Future<void> _loadMonthData() async {
     try {
-      final now = DateTime.now();
-      final bookings = await SupabaseService.getBookingsForMonth(now.year, now.month);
+      final bookings = await SupabaseService.getBookingsForMonth(_selectedMonth.year, _selectedMonth.month);
       final Set<int> days = {};
       for (var b in bookings) {
         if (b['fecha'] != null) {
@@ -678,13 +1141,14 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   Future<void> _loadEventsForDay(int day) async {
     setState(() => _isLoadingEvents = true);
     try {
-      final now = DateTime.now();
-      final targetDate = DateTime(now.year, now.month, day);
+      final targetDate = DateTime(_selectedMonth.year, _selectedMonth.month, day);
       final events = await SupabaseService.getBookingsForDay(targetDate);
       
       final List<String> eventStrings = events.map((event) {
         final hora = event['hora']?.toString().substring(0, 5) ?? '00:00';
-        final servicio = event['servicio']?['nombre'] ?? 'Servicio';
+        final servicio = (event['notas'] != null && event['notas'].toString().startsWith('Servicios:'))
+            ? event['notas'].toString().replaceFirst('Servicios: ', '')
+            : (event['servicio']?['nombre'] ?? 'Servicio');
         return '$hora - $servicio';
       }).toList();
       
@@ -701,11 +1165,34 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     _loadEventsForDay(day);
   }
 
+  void _changeMonth(int delta) {
+    setState(() {
+      _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + delta);
+      final daysInNewMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
+      if (_selectedDay > daysInNewMonth) {
+        _selectedDay = daysInNewMonth;
+      }
+    });
+    _loadMonthData();
+    _loadEventsForDay(_selectedDay);
+  }
+
+  void _goToToday() {
+    final now = DateTime.now();
+    setState(() {
+      _selectedMonth = DateTime(now.year, now.month);
+      _selectedDay = now.day;
+    });
+    _loadMonthData();
+    _loadEventsForDay(_selectedDay);
+  }
+
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
-    final firstDayWeekday = DateTime(now.year, now.month, 1).weekday; // 1 = Lunes, 7 = Domingo
+    final daysInMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
+    final firstDayWeekday = DateTime(_selectedMonth.year, _selectedMonth.month, 1).weekday; // 1 = Lunes, 7 = Domingo
+    final isCurrentMonth = _selectedMonth.year == now.year && _selectedMonth.month == now.month;
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -760,68 +1247,132 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                   opacity: Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.2, 0.5))),
                   child: SlideTransition(
                     position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.2, 0.5, curve: Curves.easeOut))),
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: AppColors.panel.withOpacity(0.85),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.white12, width: 1.5),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))],
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('${_getMonthName(now.month)} ${now.year}'.toUpperCase(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.white)),
-                              const Icon(Icons.calendar_month_outlined, color: AppColors.accent, size: 20),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          const Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [_Weekday('L'), _Weekday('M'), _Weekday('X'), _Weekday('J'), _Weekday('V'), _Weekday('S'), _Weekday('D')]),
-                          const SizedBox(height: 10),
-                          GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: 42,
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7, childAspectRatio: 1),
-                            itemBuilder: (context, index) {
-                              final dayOffset = index - (firstDayWeekday - 1);
-                              final day = dayOffset + 1;
-                              if (day < 1 || day > daysInMonth) return const SizedBox.shrink();
-                              
-                              final selected = day == _selectedDay;
-                              final marked = _markedDays.contains(day);
-                              final isToday = day == DateTime.now().day;
-                              
-                              return InkWell(
-                                onTap: () => _onDaySelected(day),
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  margin: const EdgeInsets.all(3),
-                                  decoration: BoxDecoration(
-                                    color: selected ? AppColors.accent : Colors.transparent,
-                                    border: isToday && !selected ? Border.all(color: AppColors.accent.withOpacity(0.5), width: 2) : null,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text('$day', style: TextStyle(color: selected ? Colors.white : (marked ? Colors.white : Colors.white60), fontSize: 13, fontWeight: marked || selected ? FontWeight.w900 : FontWeight.w600)),
-                                      if (marked)
-                                        Container(
-                                          margin: const EdgeInsets.only(top: 2),
-                                          width: 4,
-                                          height: 4,
-                                          decoration: BoxDecoration(color: selected ? Colors.white : AppColors.accent, shape: BoxShape.circle),
-                                        ),
-                                    ],
+                    child: GestureDetector(
+                      onHorizontalDragEnd: (details) {
+                        if (details.primaryVelocity != null) {
+                          if (details.primaryVelocity! < -200) {
+                            _changeMonth(1);
+                          } else if (details.primaryVelocity! > 200) {
+                            _changeMonth(-1);
+                          }
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: AppColors.panel.withOpacity(0.85),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: Colors.white12, width: 1.5),
+                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))],
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${_getMonthName(_selectedMonth.month)} ${_selectedMonth.year}'.toUpperCase(),
+                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.white),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                              );
-                            },
-                          ),
-                        ],
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    InkWell(
+                                      onTap: () => _changeMonth(-1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.08),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(Icons.chevron_left, color: Colors.white, size: 20),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    InkWell(
+                                      onTap: () => _changeMonth(1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.08),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(Icons.chevron_right, color: Colors.white, size: 20),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    InkWell(
+                                      onTap: _goToToday,
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: isCurrentMonth ? AppColors.accent.withOpacity(0.2) : Colors.white.withOpacity(0.08),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: isCurrentMonth ? Border.all(color: AppColors.accent.withOpacity(0.4), width: 1) : null,
+                                        ),
+                                        child: Icon(
+                                          Icons.calendar_month_outlined,
+                                          color: isCurrentMonth ? AppColors.accent : Colors.white70,
+                                          size: 20,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            const Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [_Weekday('L'), _Weekday('M'), _Weekday('X'), _Weekday('J'), _Weekday('V'), _Weekday('S'), _Weekday('D')]),
+                            const SizedBox(height: 10),
+                            GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: 42,
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7, childAspectRatio: 1),
+                              itemBuilder: (context, index) {
+                                final dayOffset = index - (firstDayWeekday - 1);
+                                final day = dayOffset + 1;
+                                if (day < 1 || day > daysInMonth) return const SizedBox.shrink();
+                                
+                                final selected = day == _selectedDay;
+                                final marked = _markedDays.contains(day);
+                                final isToday = day == now.day && isCurrentMonth;
+                                
+                                return InkWell(
+                                  onTap: () => _onDaySelected(day),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    margin: const EdgeInsets.all(3),
+                                    decoration: BoxDecoration(
+                                      color: selected ? AppColors.accent : Colors.transparent,
+                                      border: isToday && !selected ? Border.all(color: AppColors.accent.withOpacity(0.5), width: 2) : null,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text('$day', style: TextStyle(color: selected ? Colors.white : (marked ? Colors.white : Colors.white60), fontSize: 13, fontWeight: marked || selected ? FontWeight.w900 : FontWeight.w600)),
+                                        if (marked)
+                                          Container(
+                                            margin: const EdgeInsets.only(top: 2),
+                                            width: 4,
+                                            height: 4,
+                                            decoration: BoxDecoration(color: selected ? Colors.white : AppColors.accent, shape: BoxShape.circle),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -831,7 +1382,10 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                 
                 FadeTransition(
                   opacity: Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.4, 0.8))),
-                  child: const Text('CITAS DEL DÍA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.white54)),
+                  child: Text(
+                    'CITAS DEL DÍA ($_selectedDay DE ${_getMonthName(_selectedMonth.month).toUpperCase()})',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.white54),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 
@@ -879,6 +1433,13 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                     ),
                   ),
                 ),
+
+                const SizedBox(height: 24),
+
+                FadeTransition(
+                  opacity: Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.6, 1.0))),
+                  child: const LocationCard(),
+                ),
               ],
             ),
           ),
@@ -891,16 +1452,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     return months[month - 1];
   }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({required this.number, required this.label, required this.border});
-  final String number;
-  final String label;
-  final Color border;
-
-  @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(17), decoration: BoxDecoration(color: AppColors.panel, borderRadius: BorderRadius.circular(16), border: Border(bottom: BorderSide(color: border, width: 3))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(number, style: const TextStyle(fontSize: 35, height: 1, fontWeight: FontWeight.w900)), const SizedBox(height: 7), Text(label, style: const TextStyle(color: Colors.white54, fontSize: 11))]));
 }
 
 class _Weekday extends StatelessWidget {
@@ -990,16 +1541,20 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
             title: const Text('Reprogramar Cita', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Text('Selecciona nueva fecha y hora (9:00 AM a 9:00 PM):', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 12),
                 _PickerButton(
                   icon: Icons.calendar_month_outlined,
                   label: dateStr,
                   onTap: () async {
+                    final now = DateTime.now();
                     final d = await showDatePicker(
                       context: dialogContext,
                       initialDate: selectedDate,
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 90)),
+                      firstDate: now,
+                      lastDate: now.add(const Duration(days: 90)),
                       builder: (ctx, child) => Theme(
                         data: ThemeData.dark().copyWith(colorScheme: const ColorScheme.dark(primary: AppColors.accent, surface: AppColors.panel)),
                         child: child!,
@@ -1011,17 +1566,43 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
                 const SizedBox(height: 16),
                 _PickerButton(
                   icon: Icons.access_time_outlined,
-                  label: timeStr,
+                  label: '$timeStr (9 AM - 9 PM)',
                   onTap: () async {
                     final t = await showTimePicker(
                       context: dialogContext,
                       initialTime: selectedTime,
+                      helpText: 'HORARIO: 9:00 AM - 9:00 PM',
                       builder: (ctx, child) => Theme(
                         data: ThemeData.dark().copyWith(colorScheme: const ColorScheme.dark(primary: AppColors.accent, surface: AppColors.panel)),
                         child: child!,
                       ),
                     );
-                    if (t != null) setStateDialog(() => selectedTime = t);
+                    if (t != null) {
+                      if (!SupabaseService.isValidOperatingHour(t.hour, t.minute)) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Las citas solo se pueden agendar entre las 9:00 AM y las 9:00 PM.'),
+                            backgroundColor: Colors.redAccent,
+                          ),
+                        );
+                        return;
+                      }
+                      final now = DateTime.now();
+                      final isToday = selectedDate.year == now.year && selectedDate.month == now.month && selectedDate.day == now.day;
+                      if (isToday) {
+                        final appt = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, t.hour, t.minute);
+                        if (appt.isBefore(now)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('No puedes reprogramar a una hora anterior a la actual.'),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                          return;
+                        }
+                      }
+                      setStateDialog(() => selectedTime = t);
+                    }
                   },
                 ),
               ],
@@ -1031,15 +1612,34 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
               FilledButton(
                 style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
                 onPressed: () async {
+                  if (!SupabaseService.isValidOperatingHour(selectedTime.hour, selectedTime.minute)) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Las citas solo se pueden agendar entre las 9:00 AM y las 9:00 PM.'), backgroundColor: Colors.redAccent),
+                    );
+                    return;
+                  }
+
+                  final now = DateTime.now();
+                  final isToday = selectedDate.year == now.year && selectedDate.month == now.month && selectedDate.day == now.day;
+                  if (isToday) {
+                    final appt = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, selectedTime.hour, selectedTime.minute);
+                    if (appt.isBefore(now)) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('No puedes reprogramar a una hora anterior a la actual.'), backgroundColor: Colors.redAccent),
+                      );
+                      return;
+                    }
+                  }
+
                   Navigator.pop(dialogContext);
                   if (!mounted) return;
                   setState(() => _isLoading = true);
                   try {
                     await SupabaseService.updateBookingDate(booking['id_cita'], selectedDate, timeStr);
                     await _loadData();
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cita reprogramada exitosamente')));
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('¡Cita reprogramada exitosamente!')));
                   } catch (e) {
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent));
                     setState(() => _isLoading = false);
                   }
                 },
@@ -1053,51 +1653,272 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
   }
 
   void _showAddVehicleDialog() {
-    final brandCtrl = TextEditingController();
+    String? selectedBrand;
+    final customBrandCtrl = TextEditingController();
     final modelCtrl = TextEditingController();
     final plateCtrl = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.canvas,
-        title: const Text('Nuevo Vehículo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: brandCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'Marca', labelStyle: const TextStyle(color: Colors.white54), enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)), focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)))),
-            const SizedBox(height: 12),
-            TextField(controller: modelCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'Modelo (Año)', labelStyle: const TextStyle(color: Colors.white54), enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)), focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)))),
-            const SizedBox(height: 12),
-            TextField(controller: plateCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'Placa', labelStyle: const TextStyle(color: Colors.white54), enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)), focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)))),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.canvas,
+          title: const Text('Nuevo Vehículo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: selectedBrand,
+                  dropdownColor: AppColors.panel,
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white54),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  isExpanded: true,
+                  menuMaxHeight: 300,
+                  hint: const Text('Marca del vehículo', style: TextStyle(color: Colors.white30, fontSize: 12)),
+                  decoration: InputDecoration(
+                    labelText: selectedBrand == null ? null : 'Marca del vehículo',
+                    labelStyle: const TextStyle(color: Colors.white54),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: kCarBrands.map((b) => DropdownMenuItem(
+                    value: b,
+                    child: Text(
+                      b == 'Otra marca' ? 'Otra marca (especificar)' : b,
+                      style: TextStyle(
+                        color: b == 'Otra marca' ? AppColors.accent : Colors.white,
+                        fontSize: 13,
+                        fontWeight: b == 'Otra marca' ? FontWeight.w700 : FontWeight.normal,
+                      ),
+                    ),
+                  )).toList(),
+                  onChanged: (val) => setDialogState(() => selectedBrand = val),
+                ),
+                if (selectedBrand == 'Otra marca') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: customBrandCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Especifica la marca',
+                      labelStyle: const TextStyle(color: Colors.white54),
+                      enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                      focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: modelCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Modelo o Línea (ej. Spark 2020)',
+                    labelStyle: const TextStyle(color: Colors.white54),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: plateCtrl,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [LengthLimitingTextInputFormatter(6)],
+                  style: const TextStyle(color: Colors.white, letterSpacing: 2, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    labelText: 'Placa (ej. ABC123)',
+                    labelStyle: const TextStyle(color: Colors.white54),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
+              onPressed: () async {
+                String? brand = selectedBrand;
+                if (brand == 'Otra marca') {
+                  brand = customBrandCtrl.text.trim();
+                }
+                final model = modelCtrl.text.trim();
+                final plate = AuthService.normalizePlate(plateCtrl.text);
+
+                if (brand == null || brand.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor selecciona la marca del vehículo')));
+                  return;
+                }
+                if (!isValidCarBrand(brand)) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor ingresa una marca válida (no se permiten letras o números solos)')));
+                  return;
+                }
+                if (!AuthService.isValidPlate(plate)) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La placa debe tener 3 letras y 3 números (ej. ABC123). No se permite 000000.')));
+                  return;
+                }
+
+                Navigator.pop(dialogContext);
+                if (!mounted) return;
+                setState(() => _isLoading = true);
+                try {
+                  await SupabaseService.addVehicle(brand, model.isNotEmpty ? model : 'Modelo', plate);
+                  await _loadData();
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehículo agregado exitosamente')));
+                } catch (e) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                  setState(() => _isLoading = false);
+                }
+              },
+              child: const Text('Guardar'),
+            ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
-            onPressed: () async {
-              if (brandCtrl.text.isEmpty || modelCtrl.text.isEmpty || plateCtrl.text.isEmpty) return;
-              Navigator.pop(dialogContext);
-              if (!mounted) return;
-              setState(() => _isLoading = true);
-              try {
-                await SupabaseService.addVehicle(brandCtrl.text, modelCtrl.text, plateCtrl.text);
-                await _loadData();
-              } catch (e) {
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                setState(() => _isLoading = false);
-              }
-            },
-            child: const Text('Guardar'),
+      ),
+    );
+  }
+
+  void _showEditVehicleDialog(Map<String, dynamic> vehicle) {
+    final rawBrand = vehicle['marca']?.toString() ?? '';
+    final isKnownBrand = kCarBrands.contains(rawBrand);
+    String? selectedBrand = isKnownBrand ? rawBrand : 'Otra marca';
+    final customBrandCtrl = TextEditingController(text: isKnownBrand ? '' : rawBrand);
+    final modelCtrl = TextEditingController(text: vehicle['modelo'] ?? '');
+    final plateCtrl = TextEditingController(text: vehicle['placa'] ?? '');
+    final int vehicleId = int.tryParse(vehicle['id_vehiculo'].toString()) ?? 0;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.canvas,
+          title: const Text('Editar Vehículo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: selectedBrand,
+                  dropdownColor: AppColors.panel,
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white54),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  isExpanded: true,
+                  menuMaxHeight: 300,
+                  hint: const Text('Marca del vehículo', style: TextStyle(color: Colors.white30, fontSize: 12)),
+                  decoration: InputDecoration(
+                    labelText: 'Marca del vehículo',
+                    labelStyle: const TextStyle(color: Colors.white54),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: kCarBrands.map((b) => DropdownMenuItem(
+                    value: b,
+                    child: Text(
+                      b == 'Otra marca' ? 'Otra marca (especificar)' : b,
+                      style: TextStyle(
+                        color: b == 'Otra marca' ? AppColors.accent : Colors.white,
+                        fontSize: 13,
+                        fontWeight: b == 'Otra marca' ? FontWeight.w700 : FontWeight.normal,
+                      ),
+                    ),
+                  )).toList(),
+                  onChanged: (val) => setDialogState(() => selectedBrand = val),
+                ),
+                if (selectedBrand == 'Otra marca') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: customBrandCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Especifica la marca',
+                      labelStyle: const TextStyle(color: Colors.white54),
+                      enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                      focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: modelCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Modelo o Línea',
+                    labelStyle: const TextStyle(color: Colors.white54),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: plateCtrl,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [LengthLimitingTextInputFormatter(6)],
+                  style: const TextStyle(color: Colors.white, letterSpacing: 2, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    labelText: 'Placa (ej. ABC123)',
+                    labelStyle: const TextStyle(color: Colors.white54),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
+              onPressed: () async {
+                String? brand = selectedBrand;
+                if (brand == 'Otra marca') {
+                  brand = customBrandCtrl.text.trim();
+                }
+                final model = modelCtrl.text.trim();
+                final plate = AuthService.normalizePlate(plateCtrl.text);
+
+                if (brand == null || brand.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor ingresa la marca del vehículo')));
+                  return;
+                }
+                if (!isValidCarBrand(brand)) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor ingresa una marca válida (no se permiten letras o números solos)')));
+                  return;
+                }
+                if (!AuthService.isValidPlate(plate)) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La placa debe tener 3 letras y 3 números (ej. ABC123). No se permite 000000.')));
+                  return;
+                }
+
+                Navigator.pop(dialogContext);
+                if (!mounted) return;
+                setState(() => _isLoading = true);
+                try {
+                  await SupabaseService.updateVehicle(
+                    vehicleId: vehicleId,
+                    brand: brand,
+                    model: model,
+                    plate: plate,
+                  );
+                  await _loadData();
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehículo actualizado exitosamente')));
+                } catch (e) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                  setState(() => _isLoading = false);
+                }
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   void _showEditProfileDialog() {
     final nameCtrl = TextEditingController(text: _profile?['nombre'] ?? '');
+    final emailCtrl = TextEditingController(text: _profile?['correo'] ?? _profile?['email'] ?? '');
     final phoneCtrl = TextEditingController(text: _profile?['telefono'] ?? '');
 
     showDialog(
@@ -1105,25 +1926,87 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
       builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.canvas,
         title: const Text('Editar Perfil', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: nameCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'Nombre', labelStyle: const TextStyle(color: Colors.white54), enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)), focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)))),
-            const SizedBox(height: 12),
-            TextField(controller: phoneCtrl, style: const TextStyle(color: Colors.white), decoration: InputDecoration(labelText: 'Teléfono', labelStyle: const TextStyle(color: Colors.white54), enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)), focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)))),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Nombre completo',
+                  prefixIcon: const Icon(Icons.person_outline, color: Colors.white54, size: 20),
+                  labelStyle: const TextStyle(color: Colors.white54),
+                  enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Correo electrónico (ej. usuario@gmail.com)',
+                  prefixIcon: const Icon(Icons.email_outlined, color: Colors.white54, size: 20),
+                  labelStyle: const TextStyle(color: Colors.white54),
+                  enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: phoneCtrl,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Teléfono (ej. 3001234567)',
+                  prefixIcon: const Icon(Icons.phone_android_outlined, color: Colors.white54, size: 20),
+                  labelStyle: const TextStyle(color: Colors.white54),
+                  enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
             onPressed: () async {
+              final name = nameCtrl.text.trim();
+              final email = emailCtrl.text.trim();
+              final phone = phoneCtrl.text.trim();
+
+              if (name.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor ingresa tu nombre')));
+                return;
+              }
+              if (!AuthService.isValidEmail(email)) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor ingresa un correo electrónico válido con dominio (ej. usuario@dominio.com)')));
+                return;
+              }
+              if (!AuthService.isValidColombianPhone(phone)) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El teléfono debe tener mínimo 10 dígitos y empezar por 3')));
+                return;
+              }
+
               Navigator.pop(dialogContext);
               if (!mounted) return;
               setState(() => _isLoading = true);
               try {
-                await SupabaseService.updateUserProfile(nameCtrl.text, phoneCtrl.text);
+                await SupabaseService.updateUserProfile(
+                  name: name,
+                  email: email,
+                  phone: phone,
+                );
                 await _loadData();
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('¡Perfil actualizado exitosamente!')));
               } catch (e) {
                 if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
                 setState(() => _isLoading = false);
@@ -1181,7 +2064,7 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
                               children: [
                                 Text(_profile?['nombre'] ?? 'Usuario', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: Colors.white)),
                                 const SizedBox(height: 4),
-                                Text(_profile?['correo'] ?? 'Sin correo', style: const TextStyle(color: Colors.white54, fontSize: 13, fontWeight: FontWeight.w500)),
+                                Text(_profile?['correo'] ?? _profile?['email'] ?? 'Sin correo', style: const TextStyle(color: Colors.white54, fontSize: 13, fontWeight: FontWeight.w500)),
                               ],
                             ),
                           ),
@@ -1257,15 +2140,35 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
 
   Widget _buildTabContent() {
     if (_currentTab == 0) {
-      if (_bookings.isEmpty) return const Center(child: Text('No tienes citas agendadas.', style: TextStyle(color: Colors.white54)));
+      if (_bookings.isEmpty) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.event_busy_rounded, size: 48, color: Colors.white30),
+                const SizedBox(height: 12),
+                const Text('No tienes citas agendadas aún.', style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => widget.navigate(AppSection.booking),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Agendar mi primera cita'),
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.accent),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
       return ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
         itemCount: _bookings.length,
         itemBuilder: (context, i) {
           final b = _bookings[i];
-          final status = b['estado']?.toString().toUpperCase() ?? 'PENDIENTE';
-          final isCanceled = status == 'CANCELADA';
-          final color = isCanceled ? Colors.red : (status == 'COMPLETADA' ? Colors.green : AppColors.warning);
+          final rawStatus = b['estado']?.toString() ?? 'pendiente';
+          final isCanceled = rawStatus.toLowerCase() == 'cancelada';
           
           return Container(
             margin: const EdgeInsets.only(bottom: 16),
@@ -1282,16 +2185,32 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('${b['fecha']} | ${b['hora']?.toString().substring(0,5)}', style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
-                      child: Text(status, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                    Row(
+                      children: [
+                        const Icon(Icons.schedule, size: 14, color: Colors.white54),
+                        const SizedBox(width: 6),
+                        Text('${b['fecha']}  ${b['hora']?.toString().substring(0, 5)}', style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+                      ],
                     ),
+                    StatusBadge(status: rawStatus),
                   ],
                 ),
                 const SizedBox(height: 14),
-                Text(b['servicio']?['nombre'] ?? 'Servicio', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
+                Text(
+                  (b['notas'] != null && b['notas'].toString().startsWith('Servicios:'))
+                      ? b['notas'].toString().replaceFirst('Servicios: ', '')
+                      : (b['servicio']?['nombre'] ?? 'Servicio'),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  SupabaseService.formatPrice(
+                    b['monto'] != null && (b['monto'] as num) > 0
+                        ? b['monto']
+                        : b['servicio']?['precio'],
+                  ),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.accent),
+                ),
                 const SizedBox(height: 16),
                 if (!isCanceled) Row(
                   children: [
@@ -1352,6 +2271,11 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
                             ],
                           ),
                         ),
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined, color: AppColors.accent, size: 20),
+                          tooltip: 'Editar vehículo',
+                          onPressed: () => _showEditVehicleDialog(v),
+                        ),
                       ],
                     ),
                   );
@@ -1386,11 +2310,22 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('DATOS PERSONALES', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('DATOS PERSONALES', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                    TextButton.icon(
+                      onPressed: _showEditProfileDialog,
+                      icon: const Icon(Icons.edit_outlined, size: 14, color: AppColors.accent),
+                      label: const Text('EDITAR', style: TextStyle(color: AppColors.accent, fontSize: 11, fontWeight: FontWeight.w800)),
+                      style: TextButton.styleFrom(padding: EdgeInsets.zero, visualDensity: VisualDensity.compact),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 _InfoRow(icon: Icons.person_outline, label: 'Nombre', value: _profile?['nombre'] ?? '-'),
                 const Divider(color: Colors.white12, height: 32),
-                _InfoRow(icon: Icons.email_outlined, label: 'Correo', value: _profile?['correo'] ?? '-'),
+                _InfoRow(icon: Icons.email_outlined, label: 'Correo', value: _profile?['correo'] ?? _profile?['email'] ?? '-'),
                 const Divider(color: Colors.white12, height: 32),
                 _InfoRow(icon: Icons.phone_outlined, label: 'Teléfono', value: _profile?['telefono'] ?? '-'),
               ],
