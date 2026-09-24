@@ -16,6 +16,7 @@ class AuthException implements Exception {
 class AuthService {
   static final _supabase = Supabase.instance.client;
   static const String _jwtSecret = 'driven_yield_jwt_secret_key_2026';
+  static const Duration tokenDuration = Duration(days: 7); // Duración predeterminada del token
   static AppUser? _currentUser;
 
   static AppUser? get currentUser => _currentUser;
@@ -24,8 +25,9 @@ class AuthService {
   static bool get isAuthenticated => _currentUser != null;
   static bool get isAdmin => _currentUser?.isAdmin ?? false;
 
-  /// Genera un JWT Token de sesión firmado para el usuario
-  static String generateSessionToken(AppUser user) {
+  /// Genera un JWT Token de sesión firmado para el usuario con una duración configurable
+  static String generateSessionToken(AppUser user, {Duration? expiresIn}) {
+    final duration = expiresIn ?? tokenDuration;
     final jwt = JWT(
       {
         'sub': user.id,
@@ -34,7 +36,7 @@ class AuthService {
         'role': user.role,
         'username': user.username,
         'iat': DateTime.now().millisecondsSinceEpoch ~/ 1000,
-        'exp': DateTime.now().add(const Duration(days: 7)).millisecondsSinceEpoch ~/ 1000,
+        'exp': DateTime.now().add(duration).millisecondsSinceEpoch ~/ 1000,
       },
       issuer: 'driven_yield_app',
     );

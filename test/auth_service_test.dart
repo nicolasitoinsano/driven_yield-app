@@ -78,5 +78,24 @@ void main() {
       expect(AuthService.currentUserId, isNull);
       expect(AuthService.sessionToken, isNull);
     });
+
+    test('Generates token with custom expiration duration', () {
+      final user = AppUser(
+        id: 5,
+        name: 'User Duration Test',
+        email: 'user@test.com',
+        role: 'cliente',
+      );
+
+      final token = AuthService.generateSessionToken(user, expiresIn: const Duration(hours: 24));
+      final jwt = AuthService.verifyToken(token);
+
+      expect(jwt, isNotNull);
+      final iat = jwt!.payload['iat'] as int;
+      final exp = jwt.payload['exp'] as int;
+
+      // exp - iat debe ser aproximadamente 24 horas (86400 segundos)
+      expect(exp - iat, equals(86400));
+    });
   });
 }
