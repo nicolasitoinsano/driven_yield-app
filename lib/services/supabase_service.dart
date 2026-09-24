@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../models/app_user.dart';
 import '../models/managed_service.dart';
+import '../core/constants/car_brands.dart';
 import 'auth_service.dart';
 
 class SupabaseService {
@@ -257,6 +258,9 @@ class SupabaseService {
     if (cleanBrand.isEmpty) {
       throw const AuthException('Por favor, ingresa la marca del vehículo.');
     }
+    if (!isValidCarBrand(cleanBrand)) {
+      throw const AuthException('Por favor, ingresa una marca de vehículo válida (no se permiten letras o números solos como "A" o "1").');
+    }
     if (!AuthService.isValidPlate(cleanPlate)) {
       throw const AuthException('La placa debe tener 3 letras y 3 números (ej. ABC123). No se permite 000000.');
     }
@@ -281,6 +285,9 @@ class SupabaseService {
 
     if (cleanBrand.isEmpty) {
       throw const AuthException('Por favor, ingresa la marca del vehículo.');
+    }
+    if (!isValidCarBrand(cleanBrand)) {
+      throw const AuthException('Por favor, ingresa una marca de vehículo válida (no se permiten letras o números solos como "A" o "1").');
     }
     if (!AuthService.isValidPlate(cleanPlate)) {
       throw const AuthException('La placa debe tener 3 letras y 3 números (ej. ABC123). No se permite 000000.');

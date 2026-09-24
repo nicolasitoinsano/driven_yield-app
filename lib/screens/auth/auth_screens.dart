@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/car_brands.dart';
 import '../../models/app_section.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/layout.dart';
@@ -255,7 +256,9 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _brandModelController = TextEditingController();
+  String? _selectedBrand;
+  final TextEditingController _customBrandController = TextEditingController();
+  final TextEditingController _modelController = TextEditingController();
   final TextEditingController _plateController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -277,7 +280,8 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _brandModelController.dispose();
+    _customBrandController.dispose();
+    _modelController.dispose();
     _plateController.dispose();
     _passwordController.dispose();
     _controller.dispose();
@@ -315,25 +319,41 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
         throw 'La contraseña debe contener al menos 6 caracteres.';
       }
 
-      if (plate.isNotEmpty) {
-        final cleanPlate = AuthService.normalizePlate(plate);
-        if (cleanPlate == '000000' || !AuthService.isValidPlate(cleanPlate)) {
-          throw 'La placa debe tener exactamente 3 letras y 3 números (ej. ABC123). No se permite 000000.';
-        }
+      if (_selectedBrand == null || _selectedBrand!.isEmpty) {
+        throw 'Por favor, selecciona la marca de tu carro en el menú desplegable.';
       }
 
-      final brandModel = _brandModelController.text.trim();
-      final brand = brandModel.contains(' ') ? brandModel.split(' ').first : brandModel;
-      final model = brandModel.contains(' ') ? brandModel.substring(brand.length).trim() : brandModel;
+      String brand = _selectedBrand!;
+      if (brand == 'Otra marca') {
+        final custom = _customBrandController.text.trim();
+        if (custom.isEmpty) {
+          throw 'Por favor, ingresa el nombre de la marca de tu carro.';
+        }
+        if (!isValidCarBrand(custom)) {
+          throw 'Por favor, ingresa un nombre de marca válido (no se permiten letras o números solos como "$custom").';
+        }
+        brand = custom;
+      }
+
+      if (plate.isEmpty) {
+        throw 'Por favor, ingresa la placa del vehículo (ej. ABC123).';
+      }
+
+      final cleanPlate = AuthService.normalizePlate(plate);
+      if (cleanPlate == '000000' || !AuthService.isValidPlate(cleanPlate)) {
+        throw 'La placa debe tener exactamente 3 letras y 3 números (ej. ABC123). No se permite 000000.';
+      }
+
+      final model = _modelController.text.trim();
 
       final user = await AuthService.register(
         name: name,
         email: email,
         phone: phone,
         password: password,
-        vehicleBrand: brand.isNotEmpty ? brand : 'Vehículo',
+        vehicleBrand: brand,
         vehicleModel: model.isNotEmpty ? model : 'Modelo',
-        vehiclePlate: plate,
+        vehiclePlate: cleanPlate,
       );
 
       if (!mounted) return;
@@ -430,14 +450,39 @@ class _RegisterScreenState extends State<RegisterScreen> with SingleTickerProvid
                           LengthLimitingTextInputFormatter(10),
                         ],
                       ),
+                      AppDropdownField<String>(
+                        value: _selectedBrand,
+                        hint: 'Marca de carro',
+                        icon: Icons.directions_car_outlined,
+                        items: kCarBrands.map((b) => DropdownMenuItem(
+                          value: b,
+                          child: Text(
+                            b == 'Otra marca' ? 'Otra marca (especificar)' : b,
+                            style: TextStyle(
+                              color: b == 'Otra marca' ? AppColors.accent : Colors.white,
+                              fontSize: 13,
+                              fontWeight: b == 'Otra marca' ? FontWeight.w700 : FontWeight.normal,
+                            ),
+                          ),
+                        )).toList(),
+                        onChanged: (val) => setState(() => _selectedBrand = val),
+                      ),
+                      if (_selectedBrand == 'Otra marca') ...[
+                        const SizedBox(height: 14),
+                        AppTextField(
+                          controller: _customBrandController,
+                          icon: Icons.edit_note_outlined,
+                          hint: 'Escribe la marca del carro',
+                        ),
+                      ],
                       const SizedBox(height: 14),
                       Row(
                         children: [
                           Expanded(
                             child: AppTextField(
-                              controller: _brandModelController,
-                              icon: Icons.directions_car_outlined,
-                              hint: 'Marca/Modelo',
+                              controller: _modelController,
+                              icon: Icons.drive_file_rename_outline,
+                              hint: 'Modelo (ej. Spark, Corolla)',
                             ),
                           ),
                           const SizedBox(width: 12),

@@ -136,6 +136,55 @@ class AppTextField extends StatelessWidget {
   }
 }
 
+class AppDropdownField<T> extends StatelessWidget {
+  const AppDropdownField({
+    super.key,
+    this.value,
+    required this.hint,
+    required this.items,
+    required this.onChanged,
+    this.icon,
+    this.focused = false,
+  });
+
+  final T? value;
+  final String hint;
+  final List<DropdownMenuItem<T>> items;
+  final ValueChanged<T?>? onChanged;
+  final IconData? icon;
+  final bool focused;
+
+  @override
+  Widget build(BuildContext context) {
+    final outline = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: focused ? AppColors.accent : const Color(0xFF363636)),
+    );
+
+    return DropdownButtonFormField<T>(
+      value: value,
+      items: items,
+      onChanged: onChanged,
+      dropdownColor: AppColors.panel,
+      icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white54, size: 20),
+      isExpanded: true,
+      menuMaxHeight: 320,
+      style: const TextStyle(color: Colors.white, fontSize: 13),
+      hint: Text(hint, style: const TextStyle(color: Colors.white30, fontSize: 12)),
+      decoration: InputDecoration(
+        filled: true,
+        fillColor: AppColors.field,
+        labelText: value == null ? null : hint,
+        labelStyle: const TextStyle(color: Colors.white54, fontSize: 12),
+        prefixIcon: icon == null ? null : Icon(icon, color: Colors.white38, size: 20),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 16),
+        enabledBorder: outline,
+        focusedBorder: outline.copyWith(borderSide: const BorderSide(color: AppColors.accent)),
+      ),
+    );
+  }
+}
+
 class AdminHeader extends StatelessWidget {
   const AdminHeader({super.key, required this.title, required this.subtitle});
 

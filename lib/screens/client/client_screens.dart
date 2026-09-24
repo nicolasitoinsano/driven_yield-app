@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/car_brands.dart';
 import '../../models/app_section.dart';
 import '../../models/managed_service.dart';
 import '../../widgets/layout.dart';
@@ -1075,6 +1076,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
+  DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month);
   int _selectedDay = DateTime.now().day;
   bool _isLoadingEvents = false;
   List<String> _dayEvents = [];
@@ -1097,8 +1099,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
 
   Future<void> _loadMonthData() async {
     try {
-      final now = DateTime.now();
-      final bookings = await SupabaseService.getBookingsForMonth(now.year, now.month);
+      final bookings = await SupabaseService.getBookingsForMonth(_selectedMonth.year, _selectedMonth.month);
       final Set<int> days = {};
       for (var b in bookings) {
         if (b['fecha'] != null) {
@@ -1115,8 +1116,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   Future<void> _loadEventsForDay(int day) async {
     setState(() => _isLoadingEvents = true);
     try {
-      final now = DateTime.now();
-      final targetDate = DateTime(now.year, now.month, day);
+      final targetDate = DateTime(_selectedMonth.year, _selectedMonth.month, day);
       final events = await SupabaseService.getBookingsForDay(targetDate);
       
       final List<String> eventStrings = events.map((event) {
@@ -1140,11 +1140,34 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     _loadEventsForDay(day);
   }
 
+  void _changeMonth(int delta) {
+    setState(() {
+      _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + delta);
+      final daysInNewMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
+      if (_selectedDay > daysInNewMonth) {
+        _selectedDay = daysInNewMonth;
+      }
+    });
+    _loadMonthData();
+    _loadEventsForDay(_selectedDay);
+  }
+
+  void _goToToday() {
+    final now = DateTime.now();
+    setState(() {
+      _selectedMonth = DateTime(now.year, now.month);
+      _selectedDay = now.day;
+    });
+    _loadMonthData();
+    _loadEventsForDay(_selectedDay);
+  }
+
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
-    final firstDayWeekday = DateTime(now.year, now.month, 1).weekday; // 1 = Lunes, 7 = Domingo
+    final daysInMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
+    final firstDayWeekday = DateTime(_selectedMonth.year, _selectedMonth.month, 1).weekday; // 1 = Lunes, 7 = Domingo
+    final isCurrentMonth = _selectedMonth.year == now.year && _selectedMonth.month == now.month;
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -1199,68 +1222,132 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                   opacity: Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.2, 0.5))),
                   child: SlideTransition(
                     position: Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.2, 0.5, curve: Curves.easeOut))),
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: AppColors.panel.withOpacity(0.85),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: Colors.white12, width: 1.5),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))],
-                      ),
-                      child: Column(
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('${_getMonthName(now.month)} ${now.year}'.toUpperCase(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.white)),
-                              const Icon(Icons.calendar_month_outlined, color: AppColors.accent, size: 20),
-                            ],
-                          ),
-                          const SizedBox(height: 20),
-                          const Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [_Weekday('L'), _Weekday('M'), _Weekday('X'), _Weekday('J'), _Weekday('V'), _Weekday('S'), _Weekday('D')]),
-                          const SizedBox(height: 10),
-                          GridView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: 42,
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7, childAspectRatio: 1),
-                            itemBuilder: (context, index) {
-                              final dayOffset = index - (firstDayWeekday - 1);
-                              final day = dayOffset + 1;
-                              if (day < 1 || day > daysInMonth) return const SizedBox.shrink();
-                              
-                              final selected = day == _selectedDay;
-                              final marked = _markedDays.contains(day);
-                              final isToday = day == DateTime.now().day;
-                              
-                              return InkWell(
-                                onTap: () => _onDaySelected(day),
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  margin: const EdgeInsets.all(3),
-                                  decoration: BoxDecoration(
-                                    color: selected ? AppColors.accent : Colors.transparent,
-                                    border: isToday && !selected ? Border.all(color: AppColors.accent.withOpacity(0.5), width: 2) : null,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text('$day', style: TextStyle(color: selected ? Colors.white : (marked ? Colors.white : Colors.white60), fontSize: 13, fontWeight: marked || selected ? FontWeight.w900 : FontWeight.w600)),
-                                      if (marked)
-                                        Container(
-                                          margin: const EdgeInsets.only(top: 2),
-                                          width: 4,
-                                          height: 4,
-                                          decoration: BoxDecoration(color: selected ? Colors.white : AppColors.accent, shape: BoxShape.circle),
-                                        ),
-                                    ],
+                    child: GestureDetector(
+                      onHorizontalDragEnd: (details) {
+                        if (details.primaryVelocity != null) {
+                          if (details.primaryVelocity! < -200) {
+                            _changeMonth(1);
+                          } else if (details.primaryVelocity! > 200) {
+                            _changeMonth(-1);
+                          }
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: AppColors.panel.withOpacity(0.85),
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: Colors.white12, width: 1.5),
+                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))],
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${_getMonthName(_selectedMonth.month)} ${_selectedMonth.year}'.toUpperCase(),
+                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.white),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                              );
-                            },
-                          ),
-                        ],
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    InkWell(
+                                      onTap: () => _changeMonth(-1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.08),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(Icons.chevron_left, color: Colors.white, size: 20),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    InkWell(
+                                      onTap: () => _changeMonth(1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.08),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: const Icon(Icons.chevron_right, color: Colors.white, size: 20),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    InkWell(
+                                      onTap: _goToToday,
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: isCurrentMonth ? AppColors.accent.withOpacity(0.2) : Colors.white.withOpacity(0.08),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: isCurrentMonth ? Border.all(color: AppColors.accent.withOpacity(0.4), width: 1) : null,
+                                        ),
+                                        child: Icon(
+                                          Icons.calendar_month_outlined,
+                                          color: isCurrentMonth ? AppColors.accent : Colors.white70,
+                                          size: 20,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            const Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [_Weekday('L'), _Weekday('M'), _Weekday('X'), _Weekday('J'), _Weekday('V'), _Weekday('S'), _Weekday('D')]),
+                            const SizedBox(height: 10),
+                            GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: 42,
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7, childAspectRatio: 1),
+                              itemBuilder: (context, index) {
+                                final dayOffset = index - (firstDayWeekday - 1);
+                                final day = dayOffset + 1;
+                                if (day < 1 || day > daysInMonth) return const SizedBox.shrink();
+                                
+                                final selected = day == _selectedDay;
+                                final marked = _markedDays.contains(day);
+                                final isToday = day == now.day && isCurrentMonth;
+                                
+                                return InkWell(
+                                  onTap: () => _onDaySelected(day),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    margin: const EdgeInsets.all(3),
+                                    decoration: BoxDecoration(
+                                      color: selected ? AppColors.accent : Colors.transparent,
+                                      border: isToday && !selected ? Border.all(color: AppColors.accent.withOpacity(0.5), width: 2) : null,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text('$day', style: TextStyle(color: selected ? Colors.white : (marked ? Colors.white : Colors.white60), fontSize: 13, fontWeight: marked || selected ? FontWeight.w900 : FontWeight.w600)),
+                                        if (marked)
+                                          Container(
+                                            margin: const EdgeInsets.only(top: 2),
+                                            width: 4,
+                                            height: 4,
+                                            decoration: BoxDecoration(color: selected ? Colors.white : AppColors.accent, shape: BoxShape.circle),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -1270,7 +1357,10 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                 
                 FadeTransition(
                   opacity: Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _anim, curve: const Interval(0.4, 0.8))),
-                  child: const Text('CITAS DEL DÍA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.white54)),
+                  child: Text(
+                    'CITAS DEL DÍA ($_selectedDay DE ${_getMonthName(_selectedMonth.month).toUpperCase()})',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Colors.white54),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 
@@ -1538,179 +1628,265 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
   }
 
   void _showAddVehicleDialog() {
-    final brandCtrl = TextEditingController();
+    String? selectedBrand;
+    final customBrandCtrl = TextEditingController();
     final modelCtrl = TextEditingController();
     final plateCtrl = TextEditingController();
 
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.canvas,
-        title: const Text('Nuevo Vehículo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: brandCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Marca (ej. Chevrolet, Mazda)',
-                labelStyle: const TextStyle(color: Colors.white54),
-                enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
-                focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
-              ),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.canvas,
+          title: const Text('Nuevo Vehículo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: selectedBrand,
+                  dropdownColor: AppColors.panel,
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white54),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  isExpanded: true,
+                  menuMaxHeight: 300,
+                  hint: const Text('Marca del vehículo', style: TextStyle(color: Colors.white30, fontSize: 12)),
+                  decoration: InputDecoration(
+                    labelText: selectedBrand == null ? null : 'Marca del vehículo',
+                    labelStyle: const TextStyle(color: Colors.white54),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: kCarBrands.map((b) => DropdownMenuItem(
+                    value: b,
+                    child: Text(
+                      b == 'Otra marca' ? 'Otra marca (especificar)' : b,
+                      style: TextStyle(
+                        color: b == 'Otra marca' ? AppColors.accent : Colors.white,
+                        fontSize: 13,
+                        fontWeight: b == 'Otra marca' ? FontWeight.w700 : FontWeight.normal,
+                      ),
+                    ),
+                  )).toList(),
+                  onChanged: (val) => setDialogState(() => selectedBrand = val),
+                ),
+                if (selectedBrand == 'Otra marca') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: customBrandCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Especifica la marca',
+                      labelStyle: const TextStyle(color: Colors.white54),
+                      enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                      focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: modelCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Modelo o Línea (ej. Spark 2020)',
+                    labelStyle: const TextStyle(color: Colors.white54),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: plateCtrl,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [LengthLimitingTextInputFormatter(6)],
+                  style: const TextStyle(color: Colors.white, letterSpacing: 2, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    labelText: 'Placa (ej. ABC123)',
+                    labelStyle: const TextStyle(color: Colors.white54),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: modelCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Modelo o Línea (ej. Spark 2020)',
-                labelStyle: const TextStyle(color: Colors.white54),
-                enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
-                focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: plateCtrl,
-              textCapitalization: TextCapitalization.characters,
-              inputFormatters: [LengthLimitingTextInputFormatter(6)],
-              style: const TextStyle(color: Colors.white, letterSpacing: 2, fontWeight: FontWeight.bold),
-              decoration: InputDecoration(
-                labelText: 'Placa (ej. ABC123)',
-                labelStyle: const TextStyle(color: Colors.white54),
-                enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
-                focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
-              ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
+              onPressed: () async {
+                String? brand = selectedBrand;
+                if (brand == 'Otra marca') {
+                  brand = customBrandCtrl.text.trim();
+                }
+                final model = modelCtrl.text.trim();
+                final plate = AuthService.normalizePlate(plateCtrl.text);
+
+                if (brand == null || brand.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor selecciona la marca del vehículo')));
+                  return;
+                }
+                if (!isValidCarBrand(brand)) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor ingresa una marca válida (no se permiten letras o números solos)')));
+                  return;
+                }
+                if (!AuthService.isValidPlate(plate)) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La placa debe tener 3 letras y 3 números (ej. ABC123). No se permite 000000.')));
+                  return;
+                }
+
+                Navigator.pop(dialogContext);
+                if (!mounted) return;
+                setState(() => _isLoading = true);
+                try {
+                  await SupabaseService.addVehicle(brand, model.isNotEmpty ? model : 'Modelo', plate);
+                  await _loadData();
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehículo agregado exitosamente')));
+                } catch (e) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                  setState(() => _isLoading = false);
+                }
+              },
+              child: const Text('Guardar'),
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
-            onPressed: () async {
-              final brand = brandCtrl.text.trim();
-              final model = modelCtrl.text.trim();
-              final plate = AuthService.normalizePlate(plateCtrl.text);
-
-              if (brand.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor ingresa la marca del vehículo')));
-                return;
-              }
-              if (!AuthService.isValidPlate(plate)) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La placa debe tener 3 letras y 3 números (ej. ABC123). No se permite 000000.')));
-                return;
-              }
-
-              Navigator.pop(dialogContext);
-              if (!mounted) return;
-              setState(() => _isLoading = true);
-              try {
-                await SupabaseService.addVehicle(brand, model, plate);
-                await _loadData();
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehículo agregado exitosamente')));
-              } catch (e) {
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                setState(() => _isLoading = false);
-              }
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
       ),
     );
   }
 
   void _showEditVehicleDialog(Map<String, dynamic> vehicle) {
-    final brandCtrl = TextEditingController(text: vehicle['marca'] ?? '');
+    final rawBrand = vehicle['marca']?.toString() ?? '';
+    final isKnownBrand = kCarBrands.contains(rawBrand);
+    String? selectedBrand = isKnownBrand ? rawBrand : 'Otra marca';
+    final customBrandCtrl = TextEditingController(text: isKnownBrand ? '' : rawBrand);
     final modelCtrl = TextEditingController(text: vehicle['modelo'] ?? '');
     final plateCtrl = TextEditingController(text: vehicle['placa'] ?? '');
     final int vehicleId = int.tryParse(vehicle['id_vehiculo'].toString()) ?? 0;
 
     showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.canvas,
-        title: const Text('Editar Vehículo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: brandCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Marca',
-                labelStyle: const TextStyle(color: Colors.white54),
-                enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
-                focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
-              ),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.canvas,
+          title: const Text('Editar Vehículo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: selectedBrand,
+                  dropdownColor: AppColors.panel,
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white54),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  isExpanded: true,
+                  menuMaxHeight: 300,
+                  hint: const Text('Marca del vehículo', style: TextStyle(color: Colors.white30, fontSize: 12)),
+                  decoration: InputDecoration(
+                    labelText: 'Marca del vehículo',
+                    labelStyle: const TextStyle(color: Colors.white54),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                  ),
+                  items: kCarBrands.map((b) => DropdownMenuItem(
+                    value: b,
+                    child: Text(
+                      b == 'Otra marca' ? 'Otra marca (especificar)' : b,
+                      style: TextStyle(
+                        color: b == 'Otra marca' ? AppColors.accent : Colors.white,
+                        fontSize: 13,
+                        fontWeight: b == 'Otra marca' ? FontWeight.w700 : FontWeight.normal,
+                      ),
+                    ),
+                  )).toList(),
+                  onChanged: (val) => setDialogState(() => selectedBrand = val),
+                ),
+                if (selectedBrand == 'Otra marca') ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: customBrandCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Especifica la marca',
+                      labelStyle: const TextStyle(color: Colors.white54),
+                      enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                      focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: modelCtrl,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Modelo o Línea',
+                    labelStyle: const TextStyle(color: Colors.white54),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: plateCtrl,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [LengthLimitingTextInputFormatter(6)],
+                  style: const TextStyle(color: Colors.white, letterSpacing: 2, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    labelText: 'Placa (ej. ABC123)',
+                    labelStyle: const TextStyle(color: Colors.white54),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: modelCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                labelText: 'Modelo o Línea',
-                labelStyle: const TextStyle(color: Colors.white54),
-                enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
-                focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: plateCtrl,
-              textCapitalization: TextCapitalization.characters,
-              inputFormatters: [LengthLimitingTextInputFormatter(6)],
-              style: const TextStyle(color: Colors.white, letterSpacing: 2, fontWeight: FontWeight.bold),
-              decoration: InputDecoration(
-                labelText: 'Placa (ej. ABC123)',
-                labelStyle: const TextStyle(color: Colors.white54),
-                enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white24), borderRadius: BorderRadius.circular(12)),
-                focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: AppColors.accent), borderRadius: BorderRadius.circular(12)),
-              ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
+              onPressed: () async {
+                String? brand = selectedBrand;
+                if (brand == 'Otra marca') {
+                  brand = customBrandCtrl.text.trim();
+                }
+                final model = modelCtrl.text.trim();
+                final plate = AuthService.normalizePlate(plateCtrl.text);
+
+                if (brand == null || brand.trim().isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor ingresa la marca del vehículo')));
+                  return;
+                }
+                if (!isValidCarBrand(brand)) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor ingresa una marca válida (no se permiten letras o números solos)')));
+                  return;
+                }
+                if (!AuthService.isValidPlate(plate)) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La placa debe tener 3 letras y 3 números (ej. ABC123). No se permite 000000.')));
+                  return;
+                }
+
+                Navigator.pop(dialogContext);
+                if (!mounted) return;
+                setState(() => _isLoading = true);
+                try {
+                  await SupabaseService.updateVehicle(
+                    vehicleId: vehicleId,
+                    brand: brand,
+                    model: model,
+                    plate: plate,
+                  );
+                  await _loadData();
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehículo actualizado exitosamente')));
+                } catch (e) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                  setState(() => _isLoading = false);
+                }
+              },
+              child: const Text('Guardar'),
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar', style: TextStyle(color: Colors.white54))),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: Colors.white),
-            onPressed: () async {
-              final brand = brandCtrl.text.trim();
-              final model = modelCtrl.text.trim();
-              final plate = AuthService.normalizePlate(plateCtrl.text);
-
-              if (brand.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor ingresa la marca del vehículo')));
-                return;
-              }
-              if (!AuthService.isValidPlate(plate)) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('La placa debe tener 3 letras y 3 números (ej. ABC123). No se permite 000000.')));
-                return;
-              }
-
-              Navigator.pop(dialogContext);
-              if (!mounted) return;
-              setState(() => _isLoading = true);
-              try {
-                await SupabaseService.updateVehicle(
-                  vehicleId: vehicleId,
-                  brand: brand,
-                  model: model,
-                  plate: plate,
-                );
-                await _loadData();
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vehículo actualizado exitosamente')));
-              } catch (e) {
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                setState(() => _isLoading = false);
-              }
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
       ),
     );
   }
