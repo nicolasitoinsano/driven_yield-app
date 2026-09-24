@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/app_user.dart';
+import '../core/constants/car_brands.dart';
 
 class AuthException implements Exception {
   final String message;
@@ -246,6 +247,9 @@ class AuthService {
     final bool hasVehicleInfo = (vehiclePlate != null && vehiclePlate.trim().isNotEmpty) ||
         (vehicleBrand != null && vehicleBrand.trim().isNotEmpty);
     if (hasVehicleInfo) {
+      if (vehicleBrand != null && vehicleBrand.trim().isNotEmpty && !isValidCarBrand(vehicleBrand)) {
+        throw const AuthException('Por favor, ingresa una marca de vehículo válida (no se permiten letras o números solos como "A" o "1").');
+      }
       normalizedPlate = normalizePlate(vehiclePlate ?? '');
       if (normalizedPlate == '000000' || !isValidPlate(normalizedPlate)) {
         throw const AuthException('La placa debe tener exactamente 3 letras y 3 números (ej. ABC123). No se permite 000000.');
