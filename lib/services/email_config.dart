@@ -4,9 +4,6 @@ class EmailConfig {
   static const publicKey = 'jin3QDN3HSyQi42dm';
 
   static bool get isConfigured =>
-      serviceId.isNotEmpty &&
-      templateId.isNotEmpty &&
-      publicKey.isNotEmpty &&
       serviceId != 'TU_SERVICE_ID' &&
       templateId != 'TU_TEMPLATE_ID' &&
       publicKey != 'TU_PUBLIC_KEY';
