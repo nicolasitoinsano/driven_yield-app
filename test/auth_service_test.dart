@@ -48,9 +48,10 @@ void main() {
   });
 
   group('AuthService Session Management Tests', () {
-    test('Manages session state and logout', () {
+    test('Manages session state, JWT token generation, and logout', () {
       expect(AuthService.isAuthenticated, isFalse);
       expect(AuthService.isAdmin, isFalse);
+      expect(AuthService.sessionToken, isNull);
 
       final admin = AppUser(
         id: 20,
@@ -63,11 +64,19 @@ void main() {
       expect(AuthService.isAuthenticated, isTrue);
       expect(AuthService.isAdmin, isTrue);
       expect(AuthService.currentUserId, equals(20));
+      expect(AuthService.sessionToken, isNotNull);
+
+      final token = AuthService.sessionToken!;
+      final verifiedJwt = AuthService.verifyToken(token);
+      expect(verifiedJwt, isNotNull);
+      expect(verifiedJwt!.payload['email'], equals('admin@test.com'));
+      expect(verifiedJwt.payload['role'], equals('admin'));
 
       AuthService.logout();
       expect(AuthService.isAuthenticated, isFalse);
       expect(AuthService.isAdmin, isFalse);
       expect(AuthService.currentUserId, isNull);
+      expect(AuthService.sessionToken, isNull);
     });
   });
 }
