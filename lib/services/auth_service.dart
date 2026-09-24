@@ -1,4 +1,5 @@
 import 'package:bcrypt/bcrypt.dart';
+import 'package:dart_jsonwebtoken/dart_jsonwebtoken.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -15,15 +16,50 @@ class AuthException implements Exception {
 
 class AuthService {
   static final _supabase = Supabase.instance.client;
+  static const String _jwtSecret = 'driven_yield_jwt_secret_key_2026';
+  static const Duration tokenDuration = Duration(days: 7); // Duración predeterminada del token
   static AppUser? _currentUser;
 
   static AppUser? get currentUser => _currentUser;
   static int? get currentUserId => _currentUser?.id;
+  static String? get sessionToken => _currentUser?.token;
   static bool get isAuthenticated => _currentUser != null;
   static bool get isAdmin => _currentUser?.isAdmin ?? false;
 
+  /// Genera un JWT Token de sesión firmado para el usuario con una duración configurable
+  static String generateSessionToken(AppUser user, {Duration? expiresIn}) {
+    final duration = expiresIn ?? tokenDuration;
+    final jwt = JWT(
+      {
+        'sub': user.id,
+        'email': user.email,
+        'name': user.name,
+        'role': user.role,
+        'username': user.username,
+        'iat': DateTime.now().millisecondsSinceEpoch ~/ 1000,
+        'exp': DateTime.now().add(duration).millisecondsSinceEpoch ~/ 1000,
+      },
+      issuer: 'driven_yield_app',
+    );
+    return jwt.sign(SecretKey(_jwtSecret));
+  }
+
+  /// Verifica y decodifica un JWT Token de sesión
+  static JWT? verifyToken(String token) {
+    try {
+      return JWT.verify(token, SecretKey(_jwtSecret));
+    } catch (e) {
+      return null;
+    }
+  }
+
   static void setCurrentUser(AppUser? user) {
-    _currentUser = user;
+    if (user != null && user.token == null) {
+      final token = generateSessionToken(user);
+      _currentUser = user.copyWith(token: token);
+    } else {
+      _currentUser = user;
+    }
   }
 
   static void logout() {
@@ -173,8 +209,12 @@ class AuthService {
       throw const AuthException('Acceso denegado: Esta cuenta no tiene permisos de administrador.');
     }
 
-    _currentUser = authenticatedUser;
-    return authenticatedUser;
+    // Generar JWT Token de sesión
+    final token = generateSessionToken(authenticatedUser);
+    final userWithToken = authenticatedUser.copyWith(token: token);
+
+    _currentUser = userWithToken;
+    return userWithToken;
   }
 
   /// Valida que el teléfono tenga al menos 10 dígitos y sea de Colombia (empiece por 3)
@@ -310,7 +350,11 @@ class AuthService {
       }
     }
 
-    _currentUser = newUser;
-    return newUser;
+    // Generar JWT Token de sesión
+    final token = generateSessionToken(newUser);
+    final userWithToken = newUser.copyWith(token: token);
+
+    _currentUser = userWithToken;
+    return userWithToken;
   }
 }

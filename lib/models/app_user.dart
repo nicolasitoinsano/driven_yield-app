@@ -6,6 +6,7 @@ class AppUser {
     required this.email,
     this.phone,
     required this.role,
+    this.token,
   });
 
   final int id;
@@ -14,11 +15,32 @@ class AppUser {
   final String email;
   final String? phone;
   final String role; // 'admin' | 'cliente'
+  final String? token; // JWT Session Token
 
   bool get isAdmin => role.trim().toLowerCase() == 'admin';
   bool get isClient => !isAdmin;
 
-  factory AppUser.fromMap(Map<String, dynamic> map, {String? defaultRole}) {
+  AppUser copyWith({
+    int? id,
+    String? name,
+    String? username,
+    String? email,
+    String? phone,
+    String? role,
+    String? token,
+  }) {
+    return AppUser(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      username: username ?? this.username,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      role: role ?? this.role,
+      token: token ?? this.token,
+    );
+  }
+
+  factory AppUser.fromMap(Map<String, dynamic> map, {String? defaultRole, String? token}) {
     final rawId = map['id_usuario'] ?? map['id_admin'] ?? map['id'];
     final int parsedId = rawId is int
         ? rawId
@@ -35,6 +57,7 @@ class AppUser {
       email: map['email']?.toString() ?? map['correo']?.toString() ?? '',
       phone: map['telefono']?.toString(),
       role: resolvedRole,
+      token: token ?? map['token']?.toString(),
     );
   }
 
@@ -45,5 +68,6 @@ class AppUser {
         'email': email,
         'telefono': phone,
         'rol': role,
+        if (token != null) 'token': token,
       };
 }
